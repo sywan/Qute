@@ -19,13 +19,14 @@ function App() {
   const [reference, setReference] = useState(null);
   const [styleId, setStyleId] = useState('van-gogh');
   const [strength, setStrength] = useState(0.85);
+  const [illustrationBoost, setIllustrationBoost] = useState(false);
   const [result, setResult] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [referenceDragging, setReferenceDragging] = useState(false);
   const fileInput = useRef(null);
   const referenceInput = useRef(null);
-  const cameraInput = useRef(null);
   const video = useRef(null);
   const cameraStream = useRef(null);
   const photoRef = useRef(null);
@@ -55,6 +56,11 @@ function App() {
     if (video.current) video.current.srcObject = null;
     setCameraOpen(false);
   };
+  const clearResult = () => {
+    if (resultRef.current) URL.revokeObjectURL(resultRef.current);
+    resultRef.current = null;
+    setResult(null);
+  };
   const acceptFile = (file, kind) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) return setStatusKey('badFormat');
@@ -65,15 +71,14 @@ function App() {
       if (kind === 'photo') {
         replaceURL(photoRef, url);
         setPhoto({ url, name: file.name });
-        if (resultRef.current) URL.revokeObjectURL(resultRef.current);
-        resultRef.current = null;
-        setResult(null);
+        clearResult();
         setStatusKey('ready');
         stopCamera();
       } else {
         replaceURL(referenceRef, url);
         setReference({ url, name: file.name });
         setStyleId('custom');
+        clearResult();
         setStatusKey('');
       }
     };
@@ -81,14 +86,17 @@ function App() {
     testImage.src = url;
   };
   const openCamera = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) return cameraInput.current?.click();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatusKey('cameraUnsupported');
+      return;
+    }
     try {
-      cameraStream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      stopCamera();
+      cameraStream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       setCameraOpen(true);
       setStatusKey('cameraReady');
-    } catch {
-      setStatusKey('cameraFailed');
-      cameraInput.current?.click();
+    } catch (error) {
+      setStatusKey(error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError' ? 'cameraDenied' : error.name === 'NotFoundError' ? 'cameraMissing' : 'cameraFailed');
     }
   };
   const snap = () => {
@@ -113,7 +121,7 @@ function App() {
       setPhase('generating');
       setStatusKey('generating');
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const blob = await stylizePhoto(model, photo.url, styleURL, strength);
+      const blob = await stylizePhoto(model, photo.url, styleURL, strength, styleId === 'custom' && illustrationBoost);
       const url = URL.createObjectURL(blob);
       replaceURL(resultRef, url);
       setResult({ url, blob });
@@ -169,23 +177,30 @@ function App() {
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
             {cameraOpen ? <div className="camera-state"><video ref={video} autoPlay playsInline muted aria-label={t('openCamera')} /><div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div></div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
-            <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
           <aside className="style-panel">
             <div className="panel-title"><span className="step-badge">02</span><div><h2>{t('chooseStyle')}</h2><p>{t('styleIntro')}</p></div></div>
             <div className="style-list" role="radiogroup" aria-label={t('chooseStyle')}>
-              {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} onClick={() => setStyleId(item.id)}>
+              {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} disabled={busy} onClick={() => { setStyleId(item.id); clearResult(); }}>
                 {item.image ? <img className="style-swatch" src={item.image} alt="" /> : <span className="style-swatch swatch-custom">✧</span>}
                 <span><strong>{t(item.label)}</strong><small>{t(item.description)}</small></span><span className="check">✓</span>
               </button>)}
             </div>
-            {styleId === 'custom' && <div className="reference-picker"><button className="button button-light" onClick={() => referenceInput.current?.click()}>{reference ? t('customSelected') : t('chooseReference')} ↗</button>{reference && <span>{reference.name}</span>}</div>}
+            {styleId === 'custom' && <div className="reference-picker">
+              <div className={'reference-dropzone' + (referenceDragging ? ' dragging' : '')} onDragEnter={(event) => { event.preventDefault(); setReferenceDragging(true); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDragLeave={(event) => { event.preventDefault(); if (!event.currentTarget.contains(event.relatedTarget)) setReferenceDragging(false); }} onDrop={(event) => { event.preventDefault(); setReferenceDragging(false); if (!busy) acceptFile(event.dataTransfer.files?.[0], 'reference'); }}>
+                {reference && <img className="reference-preview" src={reference.url} alt={t('customSelected')} />}
+                <div><strong>{reference ? t('customSelected') : t('chooseReference')}</strong><p>{t('referenceDropHint')}</p>{reference && <small>{reference.name}</small>}</div>
+                <button className="button button-light" type="button" onClick={() => referenceInput.current?.click()} disabled={busy}>{t('browseReference')}</button>
+              </div>
+              <p className="reference-note">{t('referenceTip')}</p>
+              <label className="boost-toggle"><input type="checkbox" checked={illustrationBoost} onChange={(event) => { setIllustrationBoost(event.target.checked); clearResult(); }} disabled={busy} /><span><strong>{t('boostLabel')}</strong><small>{t('boostHelp')}</small></span></label>
+            </div>}
             <input ref={referenceInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
             <div className="strength-row"><label htmlFor="strength">{t('strength')}</label><strong>{Math.round(strength * 100)}%</strong></div>
-            <input id="strength" className="strength-slider" type="range" min="0.2" max="1" step="0.05" value={strength} onChange={(event) => setStrength(Number(event.target.value))} />
+            <input id="strength" className="strength-slider" type="range" min="0.2" max="1" step="0.05" value={strength} disabled={busy} onChange={(event) => { setStrength(Number(event.target.value)); clearResult(); }} />
             <div className="strength-labels"><span>{t('gentle')}</span><span>{t('bold')}</span></div>
             <button className="button button-primary generate-button" onClick={generate} disabled={busy || !photo}>{busy ? t(phase === 'loading' ? 'loadingModel' : 'generating') : result ? t('regenerate') : t('generate')} <span>✦</span></button>
             <div className="style-hint">{t('aiNotice')}</div>
@@ -196,7 +211,7 @@ function App() {
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.2 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.2.1 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
