@@ -1,30 +1,34 @@
-# Qute v0.1
+# Qute v0.2
 
-一个无需登录的照片风格网页。用手机或电脑拍照、选择相册照片，浏览器内即时处理，然后下载或通过系统分享图片。
+免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理；第一次按「用 AI 轉換」時下載 Magenta.js 神經風格遷移模型，沒有 Qute 圖片伺服器。
 
-## 当前功能
+## 功能
 
-- 电脑与手机相机、相册上传、拖放照片
-- 五种浏览器绘图效果：Qute 插画、印象派、古典油画、现代主义、绘本时光
-- 原图与结果并排预览；PNG 下载；支持时可调用系统图片分享
-- 照片不上传到 Qute 服务器；刷新页面即清除当前照片
+- 電腦或手機拍照、相簿上傳、拖放照片
+- 梵谷《臥室》、莫奈《睡蓮》、達文西《蒙娜麗莎》三幅具體作品作為參考
+- 自選參考圖與風格強度調整
+- 瀏覽器內神經風格遷移、PNG 下載、裝置支援時系統分享
+- 繁體中文／英文切換；選擇記錄在本機瀏覽器
 
-**效果说明：** v0.1 是基于原照片的色彩、轮廓和纹理处理，不是生成式 AI。它不会把真人重新画成附图那种大头身 Q 版，也不能保证改变人物外形。该能力需要后续选择模型并验证团体照质量。
+模型會轉移畫作的色彩與紋理，**不會**將真人重新生成為大頭身 Q 版，也無法保證團體照中每張臉的細節。宮崎駿等在世創作者的作品未內建；自選參考圖應由使用者確認使用權。
 
-## 运行
-
-直接用浏览器打开 `index.html` 可体验上传和滤镜。浏览器相机通常要求 HTTPS 或 localhost；本地测试可在仓库目录运行：
+## 開發
 
 ```sh
-python3 -m http.server 8000
+npm ci
+npm run dev
+npm run build
 ```
 
-然后打开 `http://localhost:8000/`。静态文件无需安装依赖或构建。
+Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，GitHub Actions 會自動建置並將 `dist/` 發布到 GitHub Pages。網站：[https://sywan.github.io/Qute/](https://sywan.github.io/Qute/)。
 
-## GitHub Pages 部署
+## 來源與依賴
 
-仓库：`sywan/Qute`。在仓库 **Settings → Pages → Build and deployment** 中选择 **Deploy from a branch**，分支 `main`，目录 `/(root)`。发布后访问 `https://sywan.github.io/Qute/`。静态资源使用相对路径，适合 GitHub Project Pages 子路径。
+- [Magenta.js Arbitrary Style Transfer](https://magenta.github.io/magenta-js/image/classes/arbitrarystyletransfernetwork.html)，Apache-2.0；模型權重在首次使用時從 Magenta 官方儲存空間下載。
+- 梵谷《臥室》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Van_Gogh_-_The_Bedroom,_1889_Chicago.jpg)
+- 莫奈《睡蓮》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Water_Lilies_-_1906,_Ryerson.jpg)
+- 達文西《蒙娜麗莎》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Leonardo_da_Vinci_-_Mona_Lisa.jpg)
 
-GitHub Pages 只托管静态文件。照片在访问者自己的浏览器中处理和暂存，所以 QR 码不能指向另一人的浏览器内图片。v0.1 提供下载与系统分享；「扫码下载生成结果」留待增加实际可访问的临时存储或点对点传输方案后实现。站点本身可公开访问且无需账号。
+三幅畫作的縮圖已儲存在倉庫內，來源頁面標示為公有領域。照片內容不寫入倉庫、Qute 伺服器或 Magenta 模型儲存空間。
 
-详细需求与版本范围见 [产品规格](docs/PRODUCT_SPEC.md)。
+產品範圍與限制見 [v0.2 規格](docs/PRODUCT_SPEC_v0.2.md)。

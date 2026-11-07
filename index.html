@@ -1,87 +1,14 @@
 <!doctype html>
-<html lang="zh-Hans">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f9f5ee">
-  <meta name="description" content="Qute：免登录的私人照片风格工作室。在浏览器内拍照、上传、转换和下载。">
-  <title>Qute · 把今天画下来</title>
-  <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js" defer></script>
-</head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="./" aria-label="Qute 首页"><span class="brand-mark">Q</span><span>qute<span class="brand-dot">.</span></span></a>
-    <span class="top-note"><span class="privacy-dot"></span> 照片只在你的浏览器处理</span>
-  </header>
-
-  <main>
-    <section class="intro">
-      <div class="intro-copy">
-        <p class="eyebrow">YOUR MOMENT, REIMAGINED</p>
-        <h1>把今天，<br><em>画下来。</em></h1>
-        <p class="lead">拍一张照，挑一种画风，几秒钟就能带走你的作品。无需账号，也无需上传到服务器。</p>
-        <div class="intro-pills"><span>✦ 免登录</span><span>✦ 即时预览</span><span>✦ 本机处理</span></div>
-      </div>
-      <div class="hero-art" aria-hidden="true">
-        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
-        <div class="art-card art-card-back"><span>✳</span></div>
-        <div class="art-card art-card-front"><div class="sun"></div><div class="hill hill-a"></div><div class="hill hill-b"></div><div class="art-sparkle">✦</div></div>
-        <span class="art-label">a little more magical ✨</span>
-      </div>
-    </section>
-
-    <section class="studio" aria-labelledby="studio-title">
-      <div class="section-heading"><span class="step-badge">01</span><div><p class="eyebrow">THE STUDIO</p><h2 id="studio-title">开始创作</h2></div></div>
-      <div class="studio-grid">
-        <div class="workspace">
-          <div class="workspace-bar"><span>你的照片</span><span id="fileName" class="muted">尚未选择</span></div>
-          <div id="emptyState" class="empty-state">
-            <div class="upload-icon">↥</div>
-            <h3>从一张照片开始</h3>
-            <p>支持 JPEG、PNG、WebP 和浏览器可读取的相册图片</p>
-            <div class="upload-actions">
-              <button id="uploadButton" class="button button-primary" type="button">选择照片 <span>↗</span></button>
-              <button id="cameraButton" class="button button-light" type="button">打开相机 <span>◎</span></button>
-            </div>
-            <p class="drop-hint">也可以拖放照片到这里</p>
-          </div>
-          <div id="previewState" class="preview-state" hidden>
-            <div class="preview-panels">
-              <figure><figcaption>原图</figcaption><img id="sourcePreview" alt="原始照片预览"></figure>
-              <figure><figcaption>风格预览 <span id="previewStyle"></span></figcaption><canvas id="resultCanvas" role="img" aria-label="风格转换结果"></canvas></figure>
-            </div>
-            <div class="preview-actions">
-              <button id="changeButton" class="button button-light" type="button">更换照片</button>
-              <button id="downloadButton" class="button button-primary" type="button">下载作品 ↓</button>
-              <button id="shareButton" class="button button-light" type="button">分享图片 ↗</button>
-            </div>
-          </div>
-          <div id="cameraState" class="camera-state" hidden>
-            <video id="cameraVideo" autoplay playsinline muted aria-label="相机预览"></video>
-            <div class="camera-actions"><button id="cancelCamera" class="button button-light" type="button">取消</button><button id="snapButton" class="button button-primary" type="button">拍摄照片 ◎</button></div>
-          </div>
-          <input id="fileInput" type="file" accept="image/*" hidden>
-          <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
-        </div>
-
-        <aside class="style-panel">
-          <div class="panel-title"><span class="step-badge">02</span><div><h2>选择画风</h2><p>换一个视角看今天</p></div></div>
-          <div class="style-list" id="styleList" role="radiogroup" aria-label="选择画风">
-            <button class="style-option selected" type="button" role="radio" aria-checked="true" data-style="qute"><span class="style-swatch swatch-qute">✿</span><span><strong>Qute 插画</strong><small>柔和色块 · 鲜明轮廓</small></span><span class="check">✓</span></button>
-            <button class="style-option" type="button" role="radio" aria-checked="false" data-style="impression"><span class="style-swatch swatch-impression">☼</span><span><strong>印象派</strong><small>暖色光影 · 画布颗粒</small></span><span class="check">✓</span></button>
-            <button class="style-option" type="button" role="radio" aria-checked="false" data-style="renaissance"><span class="style-swatch swatch-renaissance">◈</span><span><strong>古典油画</strong><small>深色调 · 金色暖光</small></span><span class="check">✓</span></button>
-            <button class="style-option" type="button" role="radio" aria-checked="false" data-style="modern"><span class="style-swatch swatch-modern">▣</span><span><strong>现代主义</strong><small>几何色面 · 大胆对比</small></span><span class="check">✓</span></button>
-            <button class="style-option" type="button" role="radio" aria-checked="false" data-style="storybook"><span class="style-swatch swatch-storybook">✧</span><span><strong>绘本时光</strong><small>柔和粉彩 · 纸张质感</small></span><span class="check">✓</span></button>
-          </div>
-          <div class="style-hint">✦ 当前版本使用浏览器绘图效果，保留原照构图；AI 重绘与团体人物 Q 版化仍在后续计划中。</div>
-        </aside>
-      </div>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
-    </section>
-
-    <section class="how"><div><p class="eyebrow">HOW IT WORKS</p><h2>简单三步，<br>留下不一样的回忆。</h2></div><div class="how-steps"><p><b>01</b><span>拍照或选择相册照片</span></p><p><b>02</b><span>挑选喜欢的画风</span></p><p><b>03</b><span>下载图片，或用手机分享</span></p></div></section>
-  </main>
-  <footer><span class="footer-brand">qute<span>.</span></span><span>Made for moments worth keeping.</span><span>v0.1 · 浏览器本机处理</span></footer>
-</body>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f9f5ee">
+    <meta name="description" content="Qute：免登入、在瀏覽器內將照片轉換為畫作風格。">
+    <title>Qute · 把今天畫下來</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
