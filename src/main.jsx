@@ -24,6 +24,7 @@ function App() {
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraRequesting, setCameraRequesting] = useState(false);
   const [referenceDragging, setReferenceDragging] = useState(false);
   const fileInput = useRef(null);
   const referenceInput = useRef(null);
@@ -86,10 +87,13 @@ function App() {
     testImage.src = url;
   };
   const openCamera = async () => {
+    if (cameraRequesting) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatusKey('cameraUnsupported');
       return;
     }
+    setCameraRequesting(true);
+    setStatusKey('cameraOpening');
     try {
       stopCamera();
       cameraStream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
@@ -97,7 +101,7 @@ function App() {
       setStatusKey('cameraReady');
     } catch (error) {
       setStatusKey(error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError' ? 'cameraDenied' : error.name === 'NotFoundError' ? 'cameraMissing' : 'cameraFailed');
-    }
+    } finally { setCameraRequesting(false); }
   };
   const snap = () => {
     if (!video.current?.videoWidth) return setStatusKey('waitCamera');
@@ -177,8 +181,8 @@ function App() {
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
             {cameraOpen ? <div className="camera-state"><video ref={video} autoPlay playsInline muted aria-label={t('openCamera')} /><div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div></div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
-              : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
           <aside className="style-panel">
