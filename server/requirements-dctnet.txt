@@ -1,0 +1,5 @@
+# DCT-Net via ModelScope (TensorFlow-based pipelines). Use a separate venv if TF conflicts.
+-r requirements.txt
+modelscope>=1.15
+tensorflow>=2.13
+opencv-python-headless>=4.8

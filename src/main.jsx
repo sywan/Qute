@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initialLanguage, messages } from './i18n';
-import { getStyleModel, stylizePhoto } from './styleTransfer';
+import { runPipeline } from './engines/pipeline';
+import { engineById, settingsForGoal } from './engines/registry';
+import { fetchServerEngines, normalizeServerURL } from './engines/server';
+import StylePanel from './StylePanel';
 import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame } from './cameraEffects';
 import './styles.css';
 
 const base = import.meta.env.BASE_URL;
 const styles = [
+  { id: 'none', label: 'noReference', description: 'noReferenceDesc', image: null },
   { id: 'van-gogh', label: 'vanGogh', description: 'vanGoghDesc', image: base + 'styles/van-gogh.jpg' },
   { id: 'monet', label: 'monet', description: 'monetDesc', image: base + 'styles/monet.jpg' },
   { id: 'da-vinci', label: 'daVinci', description: 'daVinciDesc', image: base + 'styles/da-vinci.jpg' },
@@ -18,10 +22,14 @@ function App() {
   const t = (key) => messages[language][key];
   const [photo, setPhoto] = useState(null);
   const [reference, setReference] = useState(null);
-  const [styleId, setStyleId] = useState('van-gogh');
-  const [strength, setStrength] = useState(0.85);
-  const [detailRetention, setDetailRetention] = useState(35);
+  const [styleId, setStyleId] = useState('none');
+  const [goal, setGoal] = useState('cute');
+  const [serverURL, setServerURLState] = useState(() => { try { return localStorage.getItem('qute-server-url') || ''; } catch { return ''; } });
+  const [serverEngines, setServerEngines] = useState([]);
+  const [serverState, setServerState] = useState('idle');
+  const [settings, setSettings] = useState(() => settingsForGoal('cute'));
   const [result, setResult] = useState(null);
+  const [resultMeta, setResultMeta] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -64,6 +72,7 @@ function App() {
     if (resultRef.current) URL.revokeObjectURL(resultRef.current);
     resultRef.current = null;
     setResult(null);
+    setResultMeta(null);
   };
   const acceptFile = (file, kind) => {
     if (!file) return;
@@ -81,6 +90,7 @@ function App() {
       } else {
         replaceURL(referenceRef, url);
         setReference({ url, name: file.name });
+        if (styleId === 'none') setSettings(settingsForGoal(goal, { hasReference: true, serverEngines }));
         setStyleId('custom');
         clearResult();
         setStatusKey('');
@@ -122,33 +132,65 @@ function App() {
     setCameraSettings((current) => ({ ...current, ...cameraPresets[id] }));
     setCameraPreset(id);
   };
+  const chooseGoal = (id) => {
+    setGoal(id);
+    setSettings(settingsForGoal(id, { hasReference: styleId !== 'none', serverEngines }));
+    clearResult();
+  };
+  const chooseReference = (id) => {
+    const hadReference = styleId !== 'none';
+    setStyleId(id);
+    if ((id !== 'none') !== hadReference) setSettings(settingsForGoal(goal, { hasReference: id !== 'none', serverEngines }));
+    clearResult();
+  };
+  const updateSettings = (patch) => { setSettings((current) => ({ ...current, ...patch })); clearResult(); };
+  const setServerURL = (value) => {
+    setServerURLState(value);
+    setServerState('idle');
+    setServerEngines([]);
+    try { localStorage.setItem('qute-server-url', value); } catch { /* storage unavailable */ }
+  };
+  const connectServer = async () => {
+    if (!normalizeServerURL(serverURL)) { setServerState('idle'); setServerEngines([]); return; }
+    setServerState('checking');
+    try {
+      const list = await fetchServerEngines(serverURL);
+      const available = list.filter((e) => e.available && engineById(e.id)?.kind === 'server').map((e) => e.id);
+      setServerEngines(available);
+      setServerState('ok');
+      setSettings(settingsForGoal(goal, { hasReference: styleId !== 'none', serverEngines: available }));
+    } catch (error) {
+      console.error('Qute server check failed', error);
+      setServerEngines([]);
+      setServerState('error');
+    }
+  };
+  useEffect(() => { if (normalizeServerURL(serverURL)) connectServer(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const generate = async () => {
     if (!photo) return setStatusKey('missingPhoto');
     const selected = styles.find((item) => item.id === styleId);
-    const styleURL = styleId === 'custom' ? reference?.url : selected?.image;
-    if (!styleURL) return setStatusKey('missingStyle');
-    setPhase('loading');
-    setStatusKey('loadingModel');
+    const referenceURL = styleId === 'custom' ? reference?.url : selected?.image || null;
+    if (styleId === 'custom' && !referenceURL) return setStatusKey('missingStyle');
+    setPhase('generating');
+    setStatusKey('working');
     try {
-      const model = await getStyleModel();
-      setPhase('generating');
-      setStatusKey('generating');
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const blob = await stylizePhoto(model, photo.url, styleURL, strength, styleId === 'custom' ? detailRetention / 100 : 0);
-      const url = URL.createObjectURL(blob);
+      const output = await runPipeline({ photoURL: photo.url, referenceURL, settings, serverURL: normalizeServerURL(serverURL), onStep: setStatusKey });
+      const url = URL.createObjectURL(output.blob);
       replaceURL(resultRef, url);
-      setResult({ url, blob });
-      setStatusKey('done');
+      setResult({ url, blob: output.blob });
+      setResultMeta({ engine: output.engine, faces: output.faces });
+      const engine = engineById(output.engine);
+      setStatusKey(engine.kind === 'server' ? 'doneServer' : Object.values(settings.warp).some((v) => v > 0) && !output.faces ? 'doneNoFaces' : 'done');
     } catch (error) {
       console.error('Qute style transfer failed', error);
-      setStatusKey('failed');
+      setStatusKey(error.code || (engineById(settings.engine)?.kind === 'server' ? 'serverFailed' : 'failed'));
     } finally { setPhase('idle'); }
   };
   const download = () => {
     if (!result) return setStatusKey('noResult');
     const anchor = document.createElement('a');
     anchor.href = result.url;
-    anchor.download = 'qute-' + styleId + '-' + Date.now() + '.png';
+    anchor.download = 'qute-' + goal + '-' + Date.now() + '.png';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -156,7 +198,7 @@ function App() {
   };
   const share = async () => {
     if (!result) return setStatusKey('noResult');
-    const file = new File([result.blob], 'qute-' + styleId + '.png', { type: 'image/png' });
+    const file = new File([result.blob], 'qute-' + goal + '.png', { type: 'image/png' });
     if (!navigator.canShare?.({ files: [file] }) || !navigator.share) return setStatusKey('shareUnavailable');
     try { await navigator.share({ files: [file], title: 'Qute' }); }
     catch (error) { if (error.name !== 'AbortError') setStatusKey('shareFailed'); }
@@ -198,41 +240,19 @@ function App() {
               </div>
               <div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div>
             </div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {t('engine_' + resultMeta.engine)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
-          <aside className="style-panel">
-            <div className="panel-title"><span className="step-badge">02</span><div><h2>{t('chooseStyle')}</h2><p>{t('styleIntro')}</p></div></div>
-            <div className="style-list" role="radiogroup" aria-label={t('chooseStyle')}>
-              {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} disabled={busy} onClick={() => { setStyleId(item.id); if (item.id === 'custom' && styleId !== 'custom') setStrength(0.6); clearResult(); }}>
-                {item.image ? <img className="style-swatch" src={item.image} alt="" /> : <span className="style-swatch swatch-custom">✧</span>}
-                <span><strong>{t(item.label)}</strong><small>{t(item.description)}</small></span><span className="check">✓</span>
-              </button>)}
-            </div>
-            {styleId === 'custom' && <div className="reference-picker">
-              <div className={'reference-dropzone' + (referenceDragging ? ' dragging' : '')} onDragEnter={(event) => { event.preventDefault(); setReferenceDragging(true); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDragLeave={(event) => { event.preventDefault(); if (!event.currentTarget.contains(event.relatedTarget)) setReferenceDragging(false); }} onDrop={(event) => { event.preventDefault(); setReferenceDragging(false); if (!busy) acceptFile(event.dataTransfer.files?.[0], 'reference'); }}>
-                {reference && <img className="reference-preview" src={reference.url} alt={t('customSelected')} />}
-                <div><strong>{reference ? t('customSelected') : t('chooseReference')}</strong><p>{t('referenceDropHint')}</p>{reference && <small>{reference.name}</small>}</div>
-                <button className="button button-light" type="button" onClick={() => referenceInput.current?.click()} disabled={busy}>{t('browseReference')}</button>
-              </div>
-              <p className="reference-note">{t('referenceTip')}</p>
-              <label className="detail-control"><span>{t('detailRetention')} <strong>{detailRetention}%</strong></span><input type="range" min="0" max="60" step="5" value={detailRetention} onChange={(event) => { setDetailRetention(Number(event.target.value)); clearResult(); }} disabled={busy} /><small>{t('detailRetentionHelp')}</small></label>
-            </div>}
-            <input ref={referenceInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
-            <div className="strength-row"><label htmlFor="strength">{t('strength')}</label><strong>{Math.round(strength * 100)}%</strong></div>
-            <input id="strength" className="strength-slider" type="range" min="0.2" max="1" step="0.05" value={strength} disabled={busy} onChange={(event) => { setStrength(Number(event.target.value)); clearResult(); }} />
-            <div className="strength-labels"><span>{t('gentle')}</span><span>{t('bold')}</span></div>
-            <button className="button button-primary generate-button" onClick={generate} disabled={busy || !photo}>{busy ? t(phase === 'loading' ? 'loadingModel' : 'generating') : result ? t('regenerate') : t('generate')} <span>✦</span></button>
-            <div className="style-hint">{t('aiNotice')}</div>
-          </aside>
+          <StylePanel {...{ t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} />
+          <input ref={referenceInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
         </div>
         <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey) : ''}</p>
       </section>
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.2.2 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.0 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
