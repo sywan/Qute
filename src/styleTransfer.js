@@ -17,7 +17,7 @@ export function imageFromURL(url) {
     image.src = url;
   });
 }
-export async function stylizePhoto(model, photoURL, styleURL, strength, illustrationBoost = false) {
+export async function stylizePhoto(model, photoURL, styleURL, strength, detailRetention = 0) {
   const [photo, style] = await Promise.all([imageFromURL(photoURL), imageFromURL(styleURL)]);
   const maxSide = 640;
   const scale = Math.min(1, maxSide / Math.max(photo.naturalWidth, photo.naturalHeight));
@@ -25,14 +25,16 @@ export async function stylizePhoto(model, photoURL, styleURL, strength, illustra
   canvas.width = Math.max(1, Math.round(photo.naturalWidth * scale));
   canvas.height = Math.max(1, Math.round(photo.naturalHeight * scale));
   canvas.getContext('2d').drawImage(photo, 0, 0, canvas.width, canvas.height);
-  let output = await model.stylize(canvas, style, strength);
+  const output = await model.stylize(canvas, style, strength);
   const result = document.createElement('canvas');
   result.width = output.width;
   result.height = output.height;
-  result.getContext('2d').putImageData(output, 0, 0);
-  if (illustrationBoost) {
-    output = await model.stylize(result, style, Math.min(0.55, strength));
-    result.getContext('2d').putImageData(output, 0, 0);
+  const context = result.getContext('2d');
+  context.putImageData(output, 0, 0);
+  if (detailRetention > 0) {
+    context.globalAlpha = Math.min(0.6, Math.max(0, detailRetention));
+    context.drawImage(canvas, 0, 0, result.width, result.height);
+    context.globalAlpha = 1;
   }
   return new Promise((resolve, reject) => result.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Canvas export failed')), 'image/png'));
 }

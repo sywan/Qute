@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initialLanguage, messages } from './i18n';
 import { getStyleModel, stylizePhoto } from './styleTransfer';
+import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame } from './cameraEffects';
 import './styles.css';
 
 const base = import.meta.env.BASE_URL;
@@ -19,12 +20,14 @@ function App() {
   const [reference, setReference] = useState(null);
   const [styleId, setStyleId] = useState('van-gogh');
   const [strength, setStrength] = useState(0.85);
-  const [illustrationBoost, setIllustrationBoost] = useState(false);
+  const [detailRetention, setDetailRetention] = useState(35);
   const [result, setResult] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraRequesting, setCameraRequesting] = useState(false);
+  const [cameraSettings, setCameraSettings] = useState(defaultCameraSettings);
+  const [cameraPreset, setCameraPreset] = useState('natural');
   const [referenceDragging, setReferenceDragging] = useState(false);
   const fileInput = useRef(null);
   const referenceInput = useRef(null);
@@ -106,12 +109,18 @@ function App() {
   const snap = () => {
     if (!video.current?.videoWidth) return setStatusKey('waitCamera');
     const canvas = document.createElement('canvas');
-    canvas.width = video.current.videoWidth;
-    canvas.height = video.current.videoHeight;
-    canvas.getContext('2d').drawImage(video.current, 0, 0);
+    if (!renderCameraFrame(video.current, canvas, cameraSettings)) return setStatusKey('waitCamera');
     canvas.toBlob((blob) => {
       if (blob) acceptFile(new File([blob], 'qute-camera.jpg', { type: 'image/jpeg' }), 'photo');
     }, 'image/jpeg', 0.94);
+  };
+  const setCameraAdjustment = (key, value) => {
+    setCameraSettings((current) => ({ ...current, [key]: value }));
+    setCameraPreset('custom');
+  };
+  const chooseCameraPreset = (id) => {
+    setCameraSettings((current) => ({ ...current, ...cameraPresets[id] }));
+    setCameraPreset(id);
   };
   const generate = async () => {
     if (!photo) return setStatusKey('missingPhoto');
@@ -125,7 +134,7 @@ function App() {
       setPhase('generating');
       setStatusKey('generating');
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      const blob = await stylizePhoto(model, photo.url, styleURL, strength, styleId === 'custom' && illustrationBoost);
+      const blob = await stylizePhoto(model, photo.url, styleURL, strength, styleId === 'custom' ? detailRetention / 100 : 0);
       const url = URL.createObjectURL(blob);
       replaceURL(resultRef, url);
       setResult({ url, blob });
@@ -180,7 +189,15 @@ function App() {
         <div className="studio-grid">
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
-            {cameraOpen ? <div className="camera-state"><video ref={video} autoPlay playsInline muted aria-label={t('openCamera')} /><div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div></div>
+            {cameraOpen ? <div className="camera-state">
+              <div className="camera-frame"><video ref={video} autoPlay playsInline muted aria-label={t('cameraPreview')} style={{ filter: cameraFilter(cameraSettings), transform: cameraSettings.mirror ? 'scaleX(-1)' : 'none' }} /><button type="button" className={'camera-mirror' + (cameraSettings.mirror ? ' active' : '')} aria-pressed={cameraSettings.mirror} onClick={() => setCameraSettings((current) => ({ ...current, mirror: !current.mirror }))}>⇄ {t('mirror')}</button></div>
+              <div className="camera-editor"><div className="camera-editor-heading"><strong>{t('cameraAdjustments')}</strong><button type="button" onClick={() => { setCameraSettings(defaultCameraSettings); setCameraPreset('natural'); }}>{t('cameraReset')}</button></div>
+                <div className="camera-presets" role="group" aria-label={t('cameraPresets')}>{Object.keys(cameraPresets).map((id) => <button type="button" key={id} className={cameraPreset === id ? 'active' : ''} aria-pressed={cameraPreset === id} onClick={() => chooseCameraPreset(id)}>{t('preset' + id[0].toUpperCase() + id.slice(1))}</button>)}</div>
+                <div className="camera-sliders">{[['brightness', 60, 150], ['contrast', 60, 150], ['saturation', 0, 180]].map(([key, min, max]) => <label key={key}><span>{t(key)} <strong>{cameraSettings[key]}%</strong></span><input type="range" min={min} max={max} step="1" value={cameraSettings[key]} onChange={(event) => setCameraAdjustment(key, Number(event.target.value))} /></label>)}</div>
+                <p>{t('cameraAdjustmentsHelp')}</p>
+              </div>
+              <div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div>
+            </div>
               : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
@@ -188,7 +205,7 @@ function App() {
           <aside className="style-panel">
             <div className="panel-title"><span className="step-badge">02</span><div><h2>{t('chooseStyle')}</h2><p>{t('styleIntro')}</p></div></div>
             <div className="style-list" role="radiogroup" aria-label={t('chooseStyle')}>
-              {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} disabled={busy} onClick={() => { setStyleId(item.id); clearResult(); }}>
+              {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} disabled={busy} onClick={() => { setStyleId(item.id); if (item.id === 'custom' && styleId !== 'custom') setStrength(0.6); clearResult(); }}>
                 {item.image ? <img className="style-swatch" src={item.image} alt="" /> : <span className="style-swatch swatch-custom">✧</span>}
                 <span><strong>{t(item.label)}</strong><small>{t(item.description)}</small></span><span className="check">✓</span>
               </button>)}
@@ -200,7 +217,7 @@ function App() {
                 <button className="button button-light" type="button" onClick={() => referenceInput.current?.click()} disabled={busy}>{t('browseReference')}</button>
               </div>
               <p className="reference-note">{t('referenceTip')}</p>
-              <label className="boost-toggle"><input type="checkbox" checked={illustrationBoost} onChange={(event) => { setIllustrationBoost(event.target.checked); clearResult(); }} disabled={busy} /><span><strong>{t('boostLabel')}</strong><small>{t('boostHelp')}</small></span></label>
+              <label className="detail-control"><span>{t('detailRetention')} <strong>{detailRetention}%</strong></span><input type="range" min="0" max="60" step="5" value={detailRetention} onChange={(event) => { setDetailRetention(Number(event.target.value)); clearResult(); }} disabled={busy} /><small>{t('detailRetentionHelp')}</small></label>
             </div>}
             <input ref={referenceInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
             <div className="strength-row"><label htmlFor="strength">{t('strength')}</label><strong>{Math.round(strength * 100)}%</strong></div>
@@ -215,7 +232,7 @@ function App() {
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.2.1 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.2.2 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
