@@ -1,10 +1,12 @@
-"""Qute self-hosted inference server.
+"""Qute self-hosted inference server (gateway or worker).
 
 Run:  uvicorn qute_server.app:app --host 127.0.0.1 --port 8765
-API:  GET  /api/engines   -> {"engines": [{"id", "available", "reason"?, "variants"?}]}
+API:  GET  /api/health
+      GET  /api/engines   -> {"engines": [{"id", "available", "reason"?, "variants"?, "remote"?}]}
+      POST /api/warmup?engine=ID      load an engine's weights ahead of the first request
       POST /api/stylize   multipart: engine, params (JSON), image, reference? -> image/png
-Photos are processed in memory and never written to disk except temporary files that are
-deleted when a request finishes.
+Photos are processed in memory; temporary files used by subprocess engines are deleted when
+a request finishes. Python 3.7+ (the WarpGAN worker runs on TensorFlow 1.15).
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import inspect
 import io
 import json
 import logging
+from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -22,8 +25,9 @@ from PIL import Image, ImageOps
 from . import config
 from .engines import ENGINES, EngineUnavailable
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("qute")
-app = FastAPI(title="Qute inference server", version="0.3.0")
+app = FastAPI(title="Qute inference server", version="0.4.0")
 
 
 @app.middleware("http")
@@ -42,18 +46,25 @@ if "allow_private_network" in inspect.signature(CORSMiddleware.__init__).paramet
 app.add_middleware(CORSMiddleware, **_cors)
 
 
-async def _read_image(upload: UploadFile | None) -> Image.Image | None:
+async def _read_image(upload: Optional[UploadFile]):
     if upload is None:
         return None
     data = await upload.read()
     if len(data) > config.MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(413, f"image larger than {config.MAX_UPLOAD_MB:g} MB")
+        raise HTTPException(413, "image larger than {:g} MB".format(config.MAX_UPLOAD_MB))
     try:
         image = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, "unreadable image") from exc
     image.thumbnail((config.MAX_SIDE, config.MAX_SIDE), Image.LANCZOS)
     return image
+
+
+@app.on_event("startup")
+def report_engines():
+    for engine in ENGINES.values():
+        info = engine.describe()
+        log.info("engine %-16s %s %s", info["id"], "READY" if info["available"] else "off  ", info.get("reason", info.get("remote", "")))
 
 
 @app.get("/api/health")
@@ -66,15 +77,26 @@ def list_engines():
     return {"engines": [engine.describe() for engine in ENGINES.values()]}
 
 
+@app.post("/api/warmup")
+async def warmup(engine: str):
+    if engine not in ENGINES:
+        raise HTTPException(404, "unknown engine " + engine)
+    try:
+        await run_in_threadpool(ENGINES[engine].warmup)
+    except EngineUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return {"ok": True, "engine": engine}
+
+
 @app.post("/api/stylize")
 async def stylize(
     engine: str = Form(...),
     params: str = Form("{}"),
     image: UploadFile = File(...),
-    reference: UploadFile | None = File(None),
+    reference: Optional[UploadFile] = File(None),
 ):
     if engine not in ENGINES:
-        raise HTTPException(404, f"unknown engine {engine}")
+        raise HTTPException(404, "unknown engine " + engine)
     try:
         options = json.loads(params or "{}")
         if not isinstance(options, dict):
@@ -89,7 +111,7 @@ async def stylize(
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         log.exception("engine %s failed", engine)
-        raise HTTPException(500, f"{engine} failed: {exc}") from exc
+        raise HTTPException(500, "{} failed: {}".format(engine, exc)) from exc
     buffer = io.BytesIO()
     result.save(buffer, format="PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})

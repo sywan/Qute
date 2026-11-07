@@ -13,6 +13,8 @@ from PIL import Image
 from .. import config
 from .base import Engine, has_module
 
+# Multiple faces are handled by the pipeline itself (it stylises every detected head).
+
 MODELS = {
     "anime": "damo/cv_unet_person-image-cartoon_compound-models",
     "3d": "damo/cv_unet_person-image-cartoon-3d_compound-models",
@@ -41,9 +43,13 @@ class DCTNetEngine(Engine):
         if variant not in MODELS:
             variant = "anime"
         if variant not in self._pipelines:
-            self._pipelines[variant] = pipeline(Tasks.image_portrait_stylization, model=MODELS[variant])
+            model_id = MODELS[variant]
+            try:
+                self._pipelines[variant] = pipeline(Tasks.image_portrait_stylization, model=model_id)
+            except Exception:  # noqa: BLE001 — ModelScope moved DAMO models to the "iic" namespace
+                self._pipelines[variant] = pipeline(Tasks.image_portrait_stylization, model=model_id.replace("damo/", "iic/"))
         with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
             image.convert("RGB").save(tmp.name)
             result = self._pipelines[variant](tmp.name)
         bgr = result[OutputKeys.OUTPUT_IMG]
-        return Image.fromarray(np.ascontiguousarray(bgr[:, :, ::-1]).astype(np.uint8))
+        return Image.fromarray(np.ascontiguousarray(np.clip(bgr[:, :, ::-1], 0, 255)).astype(np.uint8))

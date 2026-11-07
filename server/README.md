@@ -1,86 +1,140 @@
-# Qute self-hosted inference server（自架推論伺服器）
+# Qute GPU server（自架推論伺服器）
 
-The Qute web app runs AnimeGANv2/v3, White-box Cartoonization and YuNet in the visitor's browser.
-This optional server adds the heavier algorithms that need Python/PyTorch and usually a GPU.
-It runs on **your** computer or server, so no cloud AI quota is used and photos go only to the address you enter in Qute → Advanced → Your server URL.
+Optional server for the Qute web app. It runs the algorithms that need Python/PyTorch and a GPU on
+**your own** machine, so no cloud AI quota is used and photos go only to the URL you enter in
+Qute → Advanced → *Your server URL*.
 
-Qute 網頁版在瀏覽器內執行 AnimeGANv2／v3、White-box 與 YuNet。本伺服器為選用，負責需要 Python／PyTorch（通常需 GPU）的演算法；部署在你自己的電腦或伺服器，不使用雲端 AI 額度，照片只會傳到你在「進階設定 → 自架伺服器網址」填入的位址。
+選用的 Qute 自架伺服器：在你自己的機器上執行需要 Python／GPU 的演算法，不使用雲端 AI 額度；照片只會傳到你在「進階設定 → 自架伺服器網址」填入的位址。
 
-| Engine id | Algorithm | What it does | Needs |
+| Engine id | Algorithm | Linux + NVIDIA (Docker) | Apple Silicon Mac |
 | --- | --- | --- | --- |
-| `server-whitebox` | White-box Cartoonization (CVPR 2020) | Same as the browser version, larger sizes | `requirements.txt` only (works out of the box) |
-| `dctnet` | DCT-Net (ACM TOG / SIGGRAPH 2022) | Portrait cartoonisation; variants `anime`, `3d`, `handdrawn`, `sketch`, `artstyle` | `requirements-dctnet.txt`; ModelScope downloads weights on first use |
-| `vtoonify` | VToonify (ACM TOG / SIGGRAPH Asia 2022) | High-res portrait stylisation, adjustable `style_degree` | Clone of the repo + checkpoints, its own conda env (custom CUDA ops) |
-| `instantid-chibi` | InstantID + IP-Adapter + SDXL + chibi LoRA | True big-head / small-body redraw that keeps the person's identity | `requirements-instantid.txt`, ≥12 GB VRAM GPU, InstantID checkpoints, antelopev2, a chibi SDXL LoRA |
-| `warpgan` | WarpGAN (CVPR 2019) | Automatic caricature (TPS warping + texture) | Clone of the repo, pretrained model, TensorFlow 1.x env |
+| `server-whitebox` | White-box Cartoonization (CVPR 2020) | ✓ | ✓ |
+| `dctnet` | DCT-Net (ACM TOG 2022), variants `anime` `3d` `handdrawn` `sketch` `artstyle` | ✓ GPU | ✓ CPU (TensorFlow venv) |
+| `vtoonify` | VToonify (ACM TOG 2022), variants `cartoon` `comic` `arcane` `pixar`, `style_degree` | ✓ GPU | ✓ CPU, ≈20–60 s |
+| `instantid-chibi` | InstantID + IP-Adapter + SDXL + your chibi LoRA | ✓ GPU, 12 GB+ VRAM | ✓ MPS with LCM, ≈1–3 min, 32 GB+ RAM recommended |
+| `warpgan` | WarpGAN (CVPR 2019) | ✓ CPU container | via Docker x86 emulation (may fail) or forward to the Linux box |
 
-## Quick start (White-box only, any computer)
+## Architecture
+
+```
+browser (sywan.github.io/Qute) ──HTTP──▶ gateway :8765 ── White-box, InstantID, VToonify (in process / subprocess)
+                                           ├──▶ dctnet worker   (TensorFlow 2 environment)
+                                           └──▶ warpgan worker  (TensorFlow 1.15 / Python 3.7)
+```
+
+Every process is the same `qute_server` app. `QUTE_ENGINES` chooses what a process runs itself;
+`QUTE_REMOTE_ENGINES=id=url,…` forwards engines to other processes or machines. The gateway's
+`GET /api/engines` shows each engine as READY or the reason it is off.
+
+## A. Linux + NVIDIA GPU (Docker Compose) — all five engines
+
+Requirements: Docker with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), NVIDIA driver ≥ 530 (CUDA 12.1), 12 GB+ VRAM, ≈60 GB disk.
 
 ```sh
-cd server
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+git clone https://github.com/sywan/Qute.git && cd Qute/server/deploy/linux
 cp .env.example .env
-uvicorn qute_server.app:app --host 127.0.0.1 --port 8765
+cp /path/to/your-chibi-lora.safetensors loras/chibi.safetensors   # optional but recommended
+docker compose up -d --build          # first build ≈15–30 min (dlib, insightface compile)
+docker compose logs -f qute           # first start downloads ≈20 GB of weights into ./data
+curl http://localhost:8765/api/engines
 ```
 
-Open Qute → **Advanced** → *Your server URL* = `http://localhost:8765` → **Connect**. Qute lists the engines whose dependencies are present; the rest show the reason in `GET /api/engines`.
+Use `INSTANTID_CPU_OFFLOAD=1` in `.env` for GPUs under 16 GB, `INSTANTID_LCM=1` for ≈4× faster chibi.
+WarpGAN's model comes from the authors' Google Drive; if the automatic download is blocked, download it
+from the [WarpGAN README](https://github.com/seasonSH/WarpGAN#pre-trained-model), unzip into
+`deploy/linux/data/warpgan/` and run `docker compose restart warpgan`.
 
-Browser notes: Chrome, Edge and Firefox allow `https://sywan.github.io` to call `http://localhost`. Safari blocks HTTP calls from HTTPS pages, and phones cannot reach your `localhost`; for those, put the server behind HTTPS (for example a reverse proxy with a certificate, or a tunnel) and add that origin to `QUTE_ALLOWED_ORIGINS` if you host Qute elsewhere.
+## B. Apple Silicon Mac
 
-## Adding engines
-
-### DCT-Net
+Requirements: Xcode Command Line Tools, Homebrew, ≈35 GB disk.
 
 ```sh
-pip install -r requirements-dctnet.txt
+cd Qute/server
+./deploy/mac/setup.sh                 # venvs, upstream repos, weights; writes server/.env
+cp /path/to/your-chibi-lora.safetensors loras/chibi.safetensors
+./deploy/mac/run.sh                   # gateway :8765 + DCT-Net worker :8766; Ctrl-C to stop
 ```
 
-The first request per variant downloads the ModelScope model (`damo/cv_unet_person-image-cartoon*_compound-models`). If TensorFlow conflicts with PyTorch, run a second server instance in its own venv on another port.
+`--skip-instantid` leaves out SDXL (saves ≈10 GB). WarpGAN has no Apple Silicon TensorFlow 1.x;
+try `./deploy/mac/warpgan-docker.sh` (Docker Desktop, x86 emulation) or forward it to the Linux box.
 
-### VToonify
+## C. Both: Mac front end, Linux box for the heavy engines
+
+Run A on the Linux box and B on the Mac. Tunnel the Linux gateway to the Mac and forward engines to it
+in `server/.env` on the Mac:
 
 ```sh
-git clone https://github.com/williamyang1991/VToonify ~/models/VToonify
-# create its conda env as described in the VToonify README and download checkpoints
-# (e.g. checkpoint/vtoonify_d_cartoon/vtoonify_s_d.pt plus the shared encoder/faceparsing files)
+ssh -N -L 8775:localhost:8765 user@gpu-box &          # Linux gateway appears as localhost:8775
+# server/.env on the Mac
+QUTE_REMOTE_ENGINES=dctnet=http://127.0.0.1:8766,warpgan=http://127.0.0.1:8775,instantid-chibi=http://127.0.0.1:8775
 ```
 
-Set `VTOONIFY_DIR`, `VTOONIFY_CKPT`, `VTOONIFY_PYTHON` (that env's python) in `.env`. Qute calls `style_transfer.py --scale_image --style_degree …`; the slider in Qute sets `style_degree`.
+Restart `run.sh`. The Mac now serves White-box, VToonify and DCT-Net locally and sends WarpGAN and
+InstantID to the GPU box.
 
-### InstantID chibi
+## Connecting Qute
 
-```sh
-pip install -r requirements-instantid.txt
-git clone https://github.com/InstantID/InstantID ~/models/InstantID
-python scripts/download_instantid.py ~/models/InstantID/checkpoints
-# put insightface antelopev2 in ~/models/InstantID/models/antelopev2 (see InstantID README)
-```
+Open <https://sywan.github.io/Qute/> → **Advanced** → *Your server URL* `http://localhost:8765` → **Connect**.
+Chrome, Edge and Firefox allow an HTTPS page to call `http://localhost`. Safari, phones and other
+computers cannot call a plain-HTTP server; for those use an SSH tunnel as above (so the server is
+`localhost` on that computer) or put the gateway behind HTTPS (for example `tailscale serve` or a
+reverse proxy with a certificate) and add that origin to `QUTE_ALLOWED_ORIGINS` if Qute is hosted elsewhere.
 
-Set `INSTANTID_DIR`, `INSTANTID_CHECKPOINTS`, `INSIGHTFACE_ROOT`, and `CHIBI_LORA` (an SDXL chibi / nendoroid / blind-box LoRA whose licence you accept). The server redraws the face keypoints into a two-head-tall layout (large head in the upper third of an 896×1152 canvas) so ControlNet pushes the composition toward chibi proportions. Only the largest face is used; for group photos use the browser pipeline or DCT-Net.
+## Your chibi LoRA
 
-### WarpGAN
+Qute does not bundle one. Use an SDXL LoRA for chibi / nendoroid / blind-box style whose licence fits
+your use, save it as `loras/chibi.safetensors` (or set `CHIBI_LORA` to a file path or a Hugging Face repo
+id plus `CHIBI_LORA_WEIGHT_NAME`). Without it InstantID still runs with the chibi prompt and big-head
+keypoint layout, and `/api/engines` shows a note. Tune `CHIBI_LORA_SCALE` (0.6–1.0) and `CHIBI_PROMPT`
+(add the LoRA's trigger words).
 
-WarpGAN needs TensorFlow 1.x (Python ≤3.7). Clone `seasonSH/WarpGAN`, download the pretrained model, create its env, then set `WARPGAN_DIR`, `WARPGAN_MODEL`, `WARPGAN_PYTHON`. If your checkout's `test.py` arguments differ, adjust `WARPGAN_CMD` (placeholders: `{python} {model} {input} {output} {scale}`). WarpGAN expects aligned faces; check its README for alignment.
+## Configuration reference
+
+All settings are environment variables (or `server/.env`); see `qute_server/config.py`.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `QUTE_ENGINES` | `all` | engines this process runs itself |
+| `QUTE_REMOTE_ENGINES` | — | `id=url,…` engines forwarded to other Qute processes |
+| `QUTE_DEVICE` | `cuda` | `cuda`, `mps` or `cpu` (InstantID) |
+| `QUTE_ALLOWED_ORIGINS` | sywan.github.io + localhost | CORS origins |
+| `VTOONIFY_DIR` / `VTOONIFY_PYTHON` / `VTOONIFY_DEVICE` | — / this python / `cuda` or `cpu` | VToonify clone, interpreter, device |
+| `INSTANTID_DIR` / `INSTANTID_CHECKPOINTS` / `INSIGHTFACE_ROOT` | — | InstantID clone, ControlNet + IP-Adapter, antelopev2 |
+| `INSTANTID_BASE_MODEL` | `stabilityai/stable-diffusion-xl-base-1.0` | any SDXL checkpoint (HF id or path) |
+| `INSTANTID_LCM` / `INSTANTID_STEPS` / `INSTANTID_SIZE` | `0` / 30 (8 with LCM) / `896x1152` | speed and output size |
+| `INSTANTID_CPU_OFFLOAD` | `0` | model CPU offload for < 16 GB VRAM |
+| `CHIBI_LORA` / `CHIBI_LORA_SCALE` / `CHIBI_PROMPT` / `CHIBI_NEGATIVE` | — / 0.9 / built-in | chibi style |
+| `WARPGAN_DIR` / `WARPGAN_MODEL` / `WARPGAN_PYTHON` / `WARPGAN_CMD` | — | WarpGAN clone, model, interpreter, command template |
+
+Upstream code is cloned at pinned commits by `scripts/vendor.py`; weights are fetched by
+`scripts/fetch_models.py` (both re-runnable). VToonify is patched to its pure-PyTorch StyleGAN ops, so no
+CUDA compiler is needed.
 
 ## API
 
-- `GET /api/health`
-- `GET /api/engines` → `{"engines":[{"id","available","reason"?,"variants"?}]}`
+- `GET /api/health`, `GET /api/engines`
+- `POST /api/warmup?engine=ID` — load weights before the first request
 - `POST /api/stylize` (multipart) `engine`, `params` (JSON: `variant`, `style_degree`, `identity`, `exaggeration`, `prompt`, `seed`), `image`, optional `reference` → `image/png`
 
-Uploads are limited to `QUTE_MAX_UPLOAD_MB` (20 MB) and resized to `QUTE_MAX_SIDE` (1024 px). Images are processed in memory; temporary files used by subprocess engines are deleted after each request. CORS is limited to `QUTE_ALLOWED_ORIGINS` and answers Chrome's Private Network Access preflight.
+Uploads are limited to 20 MB and resized to 1024 px; images are processed in memory and temporary files
+are deleted after each request.
 
 ## Tests
 
 ```sh
-pip install -r requirements-dev.txt
-python -m pytest -q tests
+pip install -r requirements-dev.txt && python -m pytest -q tests
 ```
+
+Covered here: API, CORS / Private Network Access, gateway → worker forwarding, VToonify and WarpGAN
+command lines (with stand-in scripts), and the InstantID engine end to end on CPU with a tiny random SDXL,
+real antelopev2 face detection, a chibi LoRA and the LCM option. Not covered: real-weight quality on a
+GPU, the Docker images (Docker Hub is not reachable from the build environment), and ModelScope downloads.
 
 ## Licences
 
-Each upstream model keeps its own licence (VToonify: S-Lab License 1.0, non-commercial; White-box: CC BY-NC-SA 4.0; check DCT-Net/ModelScope model cards, the SDXL base model and your LoRA). This server code is part of Qute.
+Each upstream model keeps its own licence: VToonify S-Lab License 1.0 (non-commercial), White-box
+CC BY-NC-SA 4.0, DCT-Net / ModelScope model cards, SDXL CreativeML Open RAIL++-M, InstantID Apache-2.0
+(code) and its model card, insightface antelopev2 (non-commercial research), WarpGAN MIT, plus your LoRA.
 
 ## References
 

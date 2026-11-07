@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+server/vendor
+server/.venv*
+server/data
+server/logs
+server/deploy/linux/data
+server/deploy/linux/loras
+**/__pycache__
+**/.pytest_cache
+Claude outputs
+public/models/animegan*
+public/models/yunet*

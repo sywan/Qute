@@ -1,0 +1,15 @@
+# DCT-Net worker (ModelScope pipelines on TensorFlow 2, GPU). Build context: repository root.
+FROM tensorflow/tensorflow:2.15.0-gpu
+
+ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/qute/server
+COPY server/requirements.txt server/requirements-dctnet.txt ./
+# The tensorflow line is already satisfied by the base image's GPU build; torch is CPU-only here.
+RUN sed -i '/^tensorflow==/d; /^torch==/d' requirements-dctnet.txt \
+    && python3 -m pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu \
+    && python3 -m pip install -r requirements-dctnet.txt
+COPY server/ /opt/qute/server/
+ENV QUTE_ENGINES=dctnet MODELSCOPE_CACHE=/data/modelscope
+EXPOSE 8765
+CMD ["sh", "-c", "python3 scripts/fetch_models.py dctnet || true; exec python3 -m uvicorn qute_server.app:app --host 0.0.0.0 --port 8765"]

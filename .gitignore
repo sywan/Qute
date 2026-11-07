@@ -9,3 +9,10 @@ server/checkpoints/
 _transfer/
 *.ref.npy
 Claude outputs/
+server/vendor/
+server/.venv*/
+server/data/
+server/logs/
+server/deploy/linux/data/
+server/deploy/linux/.env
+server/deploy/linux/loras/*.safetensors

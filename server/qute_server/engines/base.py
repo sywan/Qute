@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import threading
-from dataclasses import dataclass, field
-from typing import Any
 
 from PIL import Image
 
@@ -12,37 +10,48 @@ class EngineUnavailable(RuntimeError):
     """Raised when an engine is requested but its dependencies or weights are missing."""
 
 
-@dataclass
 class Engine:
-    id: str
-    variants: list[str] = field(default_factory=list)
+    """Base class. Subclasses override check(), load() and infer()."""
 
-    def __post_init__(self) -> None:
+    def __init__(self, id: str, variants=None):
+        self.id = id
+        self.variants = list(variants or [])
         self._lock = threading.Lock()
-        self._loaded: Any = None
+        self._loaded = None
 
-    # Override: return (available, reason)
-    def check(self) -> tuple[bool, str]:
+    def check(self):
+        """Return (available, reason)."""
         return True, ""
 
-    # Override: load heavy weights once (called under the engine lock).
-    def load(self) -> Any:
+    def load(self):
+        """Load heavy weights once (called under the engine lock)."""
         return None
 
-    # Override: run inference.
-    def infer(self, model: Any, image: Image.Image, reference: Image.Image | None, params: dict) -> Image.Image:
+    def infer(self, model, image: Image.Image, reference, params: dict) -> Image.Image:
         raise NotImplementedError
+
+    def available_variants(self):
+        return self.variants
 
     def describe(self) -> dict:
         ok, reason = self.check()
         info = {"id": self.id, "available": ok}
         if reason:
             info["reason"] = reason
-        if self.variants:
-            info["variants"] = self.variants
+        variants = self.available_variants() if ok else self.variants
+        if variants:
+            info["variants"] = variants
         return info
 
-    def run(self, image: Image.Image, reference: Image.Image | None, params: dict) -> Image.Image:
+    def warmup(self) -> None:
+        ok, reason = self.check()
+        if not ok:
+            raise EngineUnavailable(reason)
+        with self._lock:
+            if self._loaded is None:
+                self._loaded = self.load() or True
+
+    def run(self, image: Image.Image, reference, params: dict) -> Image.Image:
         ok, reason = self.check()
         if not ok:
             raise EngineUnavailable(reason)
@@ -53,6 +62,6 @@ class Engine:
             return self.infer(self._loaded, image, reference, params)
 
 
-def has_module(*names: str) -> tuple[bool, str]:
+def has_module(*names: str):
     missing = [n for n in names if importlib.util.find_spec(n) is None]
     return (not missing, "missing Python packages: " + ", ".join(missing) if missing else "")

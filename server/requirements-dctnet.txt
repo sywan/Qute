@@ -1,5 +1,18 @@
-# DCT-Net via ModelScope (TensorFlow-based pipelines). Use a separate venv if TF conflicts.
+# DCT-Net worker (ModelScope pipelines run on TensorFlow 2 via tf.compat.v1). Python 3.10/3.11.
+# Keep this in its own environment: TensorFlow and the main torch/diffusers stack conflict.
 -r requirements.txt
-modelscope>=1.15
-tensorflow>=2.13
-opencv-python-headless>=4.8
+tensorflow==2.15.1
+torch==2.3.1            # modelscope imports torch utilities even for TF pipelines (CPU build is enough)
+modelscope==1.14.0
+datasets==2.18.0
+pyarrow>=14,<18         # newer pyarrow needs NumPy 2 (TensorFlow 2.15 needs NumPy 1)
+opencv-python-headless==4.10.0.84
+scikit-image>=0.21
+joblib
+easydict
+oss2
+addict
+simplejson
+sortedcontainers
+einops
+setuptools<81          # modelscope 1.14 imports pkg_resources

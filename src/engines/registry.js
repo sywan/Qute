@@ -38,7 +38,8 @@ export const engines = [
     citation: 'Men et al., ACM TOG 41(4), SIGGRAPH 2022', repo: 'menyifang/DCT-Net', license: 'Apache-2.0 (ModelScope weights: see model card)'
   },
   {
-    id: 'vtoonify', kind: 'server', family: 'portrait', geometry: true, params: ['styleDegree', 'styleId'],
+    id: 'vtoonify', kind: 'server', family: 'portrait', geometry: true, params: ['styleDegree'],
+    variants: ['cartoon', 'comic', 'arcane', 'pixar'],
     citation: 'Yang et al., ACM TOG 41(6), SIGGRAPH Asia 2022', repo: 'williamyang1991/VToonify', license: 'S-Lab License 1.0 (non-commercial)'
   },
   {

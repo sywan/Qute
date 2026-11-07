@@ -1,7 +1,7 @@
-# Core server + White-box (ONNX). Python 3.10+
-fastapi>=0.115
-uvicorn[standard]>=0.30
+# Core server + White-box (ONNX). Python 3.8+ (the WarpGAN worker uses requirements-warpgan.txt).
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29
 python-multipart>=0.0.9
 pillow>=10
-numpy>=1.26
+numpy>=1.24,<2
 onnxruntime>=1.18

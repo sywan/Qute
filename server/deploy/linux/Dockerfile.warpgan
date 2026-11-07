@@ -1,0 +1,14 @@
+# WarpGAN worker: TensorFlow 1.15 on Python 3.7 (CPU; WarpGAN is small). Build context: repository root.
+FROM python:3.7-slim-bullseye
+
+ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends git libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/qute/server
+COPY server/requirements-warpgan.txt ./
+RUN python -m pip install -r requirements-warpgan.txt
+COPY server/scripts/vendor.py scripts/vendor.py
+RUN python scripts/vendor.py warpgan --dest /opt/vendor
+COPY server/ /opt/qute/server/
+ENV QUTE_ENGINES=warpgan WARPGAN_DIR=/opt/vendor/WarpGAN
+EXPOSE 8765
+ENTRYPOINT ["/opt/qute/server/deploy/linux/entrypoint-warpgan.sh"]

@@ -20,7 +20,7 @@ export async function fetchServerEngines(url, timeoutMs = 6000) {
   } finally { clearTimeout(timer); }
 }
 
-export async function serverStylize(url, engine, imageBlob, referenceBlob, params, timeoutMs = 300000) {
+export async function serverStylize(url, engine, imageBlob, referenceBlob, params, timeoutMs = 900000) {
   const form = new FormData();
   form.append('engine', engine);
   form.append('params', JSON.stringify(params || {}));

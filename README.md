@@ -1,4 +1,4 @@
-# Qute v0.3.0
+# Qute v0.3.1
 
 免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
 
@@ -34,11 +34,16 @@ npm run dev
 npm run build
 npm test                      # 前端純函式單元測試
 
-cd server                     # 選用：自架推論伺服器
+cd server                     # 選用：自架推論伺服器（測試）
 pip install -r requirements-dev.txt
 python -m pytest -q tests
-uvicorn qute_server.app:app --port 8765
 ```
+
+自架 GPU 伺服器（DCT-Net、VToonify、InstantID＋Chibi LoRA、WarpGAN、White-box）：
+
+- Linux＋NVIDIA：`cd server/deploy/linux && cp .env.example .env && docker compose up -d --build`
+- Apple Silicon Mac：`cd server && ./deploy/mac/setup.sh && ./deploy/mac/run.sh`
+- 詳見 [server/README.md](server/README.md)；連線後在 Qute「進階設定」輸入 `http://localhost:8765`。
 
 Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，GitHub Actions 會自動建置並將 `dist/` 發布到 GitHub Pages。網站：[https://sywan.github.io/Qute/](https://sywan.github.io/Qute/)。
 

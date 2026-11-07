@@ -1,0 +1,51 @@
+# Qute GPU server for Linux + NVIDIA (needs the NVIDIA Container Toolkit).
+#   cd server/deploy/linux && cp .env.example .env   # edit, e.g. CHIBI_LORA
+#   docker compose up -d --build
+#   curl http://localhost:8765/api/engines
+# Then in Qute → Advanced → Your server URL: http://<this machine>:8765
+name: qute
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+
+services:
+  qute:                       # gateway on :8765 — White-box, InstantID chibi, VToonify (+ forwards the rest)
+    build: { context: ../../.., dockerfile: server/deploy/linux/Dockerfile.gpu }
+    image: qute-server-gpu:0.4
+    <<: *gpu
+    ports: ["${QUTE_PORT:-8765}:8765"]
+    env_file: .env
+    environment:
+      QUTE_REMOTE_ENGINES: dctnet=http://dctnet:8765,warpgan=http://warpgan:8765
+    volumes:
+      - ./data:/data
+      - ./loras:/loras:ro
+    restart: unless-stopped
+    depends_on: [dctnet, warpgan]
+
+  dctnet:                     # DCT-Net worker (TensorFlow 2, GPU)
+    build: { context: ../../.., dockerfile: server/deploy/linux/Dockerfile.dctnet }
+    image: qute-server-dctnet:0.4
+    <<: *gpu
+    env_file: .env
+    environment:
+      QUTE_ENGINES: dctnet
+      TF_FORCE_GPU_ALLOW_GROWTH: "true"
+    volumes: ["./data:/data"]
+    restart: unless-stopped
+
+  warpgan:                    # WarpGAN worker (TensorFlow 1.15, CPU)
+    build: { context: ../../.., dockerfile: server/deploy/linux/Dockerfile.warpgan }
+    image: qute-server-warpgan:0.4
+    platform: linux/amd64
+    env_file: .env
+    environment:
+      QUTE_ENGINES: warpgan
+    volumes: ["./data:/data"]
+    restart: unless-stopped

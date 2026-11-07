@@ -1,0 +1,34 @@
+# Qute gateway + GPU engines: White-box (ONNX), InstantID + chibi LoRA (SDXL), VToonify.
+# Build context: repository root.  docker compose -f server/deploy/linux/docker-compose.yml build
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.10 python3.10-dev python3-pip git build-essential cmake curl unzip \
+        libgl1 libglib2.0-0 libopenblas-dev liblapack-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.10 /usr/local/bin/python
+
+WORKDIR /opt/qute/server
+COPY server/requirements.txt server/requirements-gpu.txt ./
+# torch 2.3.1 from PyPI ships CUDA 12.1 libraries; dlib and insightface compile here (several minutes).
+RUN python -m pip install --upgrade pip wheel setuptools \
+    && python -m pip install -r requirements-gpu.txt
+
+COPY server/scripts/vendor.py scripts/vendor.py
+RUN python scripts/vendor.py vtoonify instantid --dest /opt/vendor \
+    && rm -rf /opt/vendor/VToonify/checkpoint && ln -s /data/vtoonify/checkpoint /opt/vendor/VToonify/checkpoint
+
+COPY server/ /opt/qute/server/
+COPY public/models/whitebox-cartoon.onnx /opt/qute/public/models/whitebox-cartoon.onnx
+
+ENV QUTE_MODELS_DIR=/opt/qute/public/models \
+    QUTE_DEVICE=cuda \
+    VTOONIFY_DIR=/opt/vendor/VToonify \
+    INSTANTID_DIR=/opt/vendor/InstantID \
+    INSTANTID_CHECKPOINTS=/data/instantid \
+    INSIGHTFACE_ROOT=/data/insightface \
+    HF_HOME=/data/hf
+
+EXPOSE 8765
+ENTRYPOINT ["/opt/qute/server/deploy/linux/entrypoint-gpu.sh"]

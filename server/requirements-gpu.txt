@@ -1,0 +1,20 @@
+# Main GPU environment: White-box + InstantID (SDXL) + VToonify (subprocess, same interpreter).
+# Python 3.10/3.11. Versions pinned to the generation the InstantID pipeline file was written for.
+-r requirements.txt
+torch==2.3.1
+torchvision==0.18.1
+diffusers==0.27.2
+transformers==4.40.2
+accelerate==0.30.1
+peft==0.10.0
+huggingface_hub==0.25.2
+safetensors>=0.4.2
+insightface==0.7.3
+opencv-python-headless==4.10.0.84
+# VToonify script dependencies
+dlib==19.24.6
+scikit-image>=0.21
+scipy>=1.10
+matplotlib>=3.7
+tqdm>=4.64
+wget==3.2

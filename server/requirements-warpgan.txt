@@ -1,0 +1,18 @@
+# WarpGAN worker: TensorFlow 1.15 needs Python 3.7 (Linux x86-64). CPU is fast enough for WarpGAN.
+tensorflow==1.15.5
+numpy==1.18.5
+scipy==1.1.0            # test.py uses scipy.misc.imread / imsave (removed in later SciPy)
+pillow==6.2.2
+protobuf==3.20.3
+h5py==2.10.0
+gdown==4.6.0
+opencv-python-headless==4.5.5.64
+matplotlib==3.3.4
+six==1.16.0
+fastapi==0.103.2
+pydantic==1.10.13
+starlette==0.27.0
+anyio==3.7.1
+uvicorn==0.22.0
+python-multipart==0.0.6
+typing_extensions==4.7.1
