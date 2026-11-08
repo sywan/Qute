@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initialLanguage, messages } from './i18n';
 import { runPipeline } from './engines/pipeline';
-import { engineById, settingsForGoal } from './engines/registry';
+import { engineById, settingsForGoal, withReference, withServerEngines } from './engines/registry';
 import { fetchServerEngines, normalizeServerURL } from './engines/server';
 import StylePanel from './StylePanel';
 import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame } from './cameraEffects';
@@ -90,7 +90,7 @@ function App() {
       } else {
         replaceURL(referenceRef, url);
         setReference({ url, name: file.name });
-        if (styleId === 'none') setSettings(settingsForGoal(goal, { hasReference: true, serverEngines }));
+        if (styleId === 'none') setSettings((current) => withReference(current, goal, true));
         setStyleId('custom');
         clearResult();
         setStatusKey('');
@@ -140,7 +140,7 @@ function App() {
   const chooseReference = (id) => {
     const hadReference = styleId !== 'none';
     setStyleId(id);
-    if ((id !== 'none') !== hadReference) setSettings(settingsForGoal(goal, { hasReference: id !== 'none', serverEngines }));
+    if ((id !== 'none') !== hadReference) setSettings((current) => withReference(current, goal, id !== 'none'));
     clearResult();
   };
   const updateSettings = (patch) => { setSettings((current) => ({ ...current, ...patch })); clearResult(); };
@@ -158,11 +158,12 @@ function App() {
       const available = list.filter((e) => e.available && engineById(e.id)?.kind === 'server').map((e) => e.id);
       setServerEngines(available);
       setServerState('ok');
-      setSettings(settingsForGoal(goal, { hasReference: styleId !== 'none', serverEngines: available }));
+      setSettings((current) => withServerEngines(current, goal, available));
     } catch (error) {
       console.error('Qute server check failed', error);
       setServerEngines([]);
       setServerState('error');
+      setSettings((current) => withServerEngines(current, goal, []));
     }
   };
   useEffect(() => { if (normalizeServerURL(serverURL)) connectServer(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -252,7 +253,7 @@ function App() {
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.1 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.2 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);

@@ -78,6 +78,11 @@ export const goals = {
   bold: {
     engine: 'animeganv3-shinkai', warp: { ...defaultWarp }, detail: 0, cute: 0,
     reference: { palette: 0.6, texture: 0.7, faceProtect: 0.7 }
+  },
+  // Everything off: the result equals the photo until the visitor turns something on in Advanced.
+  custom: {
+    engine: 'photo', warp: { ...defaultWarp }, detail: 0, cute: 0,
+    reference: { palette: 0, texture: 0, faceProtect: 0.8 }
   }
 };
 
@@ -99,4 +104,23 @@ export function settingsForGoal(goalId, { hasReference = false, serverEngines = 
     identity: 0.8,
     maxSide: 768
   };
+}
+
+// Turning a reference on/off only changes the reference sliders; other Advanced edits are kept.
+export function withReference(settings, goalId, hasReference) {
+  const ref = goals[goalId].reference;
+  const next = { ...settings, palette: hasReference ? ref.palette : 0, texture: hasReference ? ref.texture : 0 };
+  if (!hasReference && engineById(next.engine)?.needsReference) next.engine = goals[goalId].engine === 'magenta' ? 'photo' : goals[goalId].engine;
+  return next;
+}
+
+// After (re)connecting a server: switch to the goal's server engine only if the visitor has not
+// picked another algorithm; switch back if that server engine is no longer available.
+export function withServerEngines(settings, goalId, serverEngines) {
+  const goal = goals[goalId];
+  if (!goal.serverEngine) return settings;
+  const available = serverEngines.includes(goal.serverEngine);
+  if (available && settings.engine === goal.engine) return { ...settings, engine: goal.serverEngine, warp: { ...defaultWarp } };
+  if (!available && settings.engine === goal.serverEngine) return { ...settings, engine: goal.engine, warp: { ...goal.warp } };
+  return settings;
 }

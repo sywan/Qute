@@ -1,7 +1,8 @@
 import React from 'react';
 import { engines, engineById, goals } from './engines/registry';
+import { describePipeline, formatStep } from './engines/summary';
 
-const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸' };
+const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸', custom: '⚙' };
 const warpKeys = ['head', 'eyes', 'chin', 'body'];
 
 function Slider({ label, value, onChange, min = 0, max = 1, step = 0.05, disabled, help, percent = true }) {
@@ -23,11 +24,12 @@ export default function StylePanel(props) {
   const set = (key) => (value) => updateSettings({ [key]: value });
   const setWarp = (key) => (value) => updateSettings({ warp: { ...settings.warp, [key]: value } });
   const serverAvailable = (id) => serverEngines.includes(id);
+  const steps = describePipeline(settings, { hasReference: styleId !== 'none' && (styleId !== 'custom' || !!reference), serverEngines });
 
   return <aside className="style-panel">
     <div className="panel-title"><span className="step-badge">02</span><div><h2>{t('chooseGoal')}</h2><p>{t('goalIntro')}</p></div></div>
     <div className="goal-grid" role="radiogroup" aria-label={t('chooseGoal')}>
-      {Object.keys(goals).map((id) => <button type="button" key={id} role="radio" aria-checked={goal === id} className={'goal-option' + (goal === id ? ' selected' : '')} disabled={busy} onClick={() => chooseGoal(id)}>
+      {Object.keys(goals).map((id) => <button type="button" key={id} role="radio" aria-checked={goal === id} className={'goal-option goal-' + id + (goal === id ? ' selected' : '')} disabled={busy} onClick={() => chooseGoal(id)}>
         <span className="goal-icon" aria-hidden="true">{goalIcons[id]}</span>
         <strong>{t('goal_' + id)}</strong>
         <small>{t('goal_' + id + '_desc')}</small>
@@ -49,13 +51,13 @@ export default function StylePanel(props) {
         <button className="button button-light" type="button" onClick={() => referenceInput.current?.click()} disabled={busy}>{t('browseReference')}</button>
       </div>
     </div>}
-    {hasReference && engine?.id !== 'magenta' && <div className="reference-controls">
+    {hasReference && <div className="reference-controls">
       <Slider label={t('refPalette')} value={settings.palette} onChange={set('palette')} disabled={busy} help={t('refPaletteHelp')} />
       <Slider label={t('refTexture')} value={settings.texture} max={1} onChange={set('texture')} disabled={busy} help={t('refTextureHelp')} />
       {settings.texture > 0 && <Slider label={t('faceProtect')} value={settings.faceProtect} onChange={set('faceProtect')} disabled={busy} help={t('faceProtectHelp')} />}
     </div>}
 
-    <details className="advanced">
+    <details className="advanced" open={goal === 'custom' || undefined}>
       <summary>{t('advanced')}</summary>
       <label className="field"><span>{t('engine')}</span>
         <select value={settings.engine} disabled={busy} onChange={(event) => updateSettings({ engine: event.target.value, variant: engineById(event.target.value).variants?.[0] || '' })}>
@@ -88,6 +90,10 @@ export default function StylePanel(props) {
       </div>
     </details>
 
+    <div className="pipeline-summary" aria-live="polite">
+      <strong>{t('summaryTitle')}</strong>
+      <div className="steps">{steps.map((step, i) => <React.Fragment key={i}>{i > 0 && <span className="arrow" aria-hidden="true">→</span>}<span className={'step' + (step.warn ? ' warn' : '')}>{formatStep(step, t, (id) => t('engine_' + id))}</span></React.Fragment>)}</div>
+    </div>
     <button className="button button-primary generate-button" onClick={generate} disabled={busy || !photo}>{busy ? t('working') : result ? t('regenerate') : t('generate')} <span>✦</span></button>
     <div className="style-hint">{engine?.kind === 'server' ? t('serverNotice') : t('aiNotice')}</div>
   </aside>;
