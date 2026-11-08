@@ -74,7 +74,7 @@ InstantID to the GPU box.
 
 ## Connecting Qute
 
-Open <https://sywan.github.io/Qute/> → **Advanced** → *Your server URL* `http://localhost:8765` → **Connect**.
+Opening `http://localhost:8765` in a browser shows a status page listing every engine as READY or the reason it is off. Then open <https://sywan.github.io/Qute/> → **Advanced** → *Your server URL* `http://localhost:8765` → **Connect**.
 Chrome, Edge and Firefox allow an HTTPS page to call `http://localhost`. Safari, phones and other
 computers cannot call a plain-HTTP server; for those use an SSH tunnel as above (so the server is
 `localhost` on that computer) or put the gateway behind HTTPS (for example `tailscale serve` or a

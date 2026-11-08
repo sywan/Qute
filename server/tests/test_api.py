@@ -59,3 +59,9 @@ def test_chibi_keypoints_layout():
     out = chibi_keypoints(kps, 896, 1152, 0.4)
     assert abs(out.mean(axis=0)[0] - 448) < 1e-3 and abs(out.mean(axis=0)[1] - 1152 * 0.30) < 1e-3
     assert abs(np.linalg.norm(out[1] - out[0]) - 0.4 * 896 * 0.42) < 1e-3
+
+
+def test_root_status_page_lists_engines():
+    r = client.get("/")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert "Qute server" in r.text and "server-whitebox" in r.text and "VTOONIFY_DIR" in r.text

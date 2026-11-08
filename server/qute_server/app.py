@@ -10,6 +10,7 @@ a request finishes. Python 3.7+ (the WarpGAN worker runs on TensorFlow 1.15).
 """
 from __future__ import annotations
 
+import html
 import inspect
 import io
 import json
@@ -19,7 +20,7 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from PIL import Image, ImageOps
 
 from . import config
@@ -65,6 +66,29 @@ def report_engines():
     for engine in ENGINES.values():
         info = engine.describe()
         log.info("engine %-16s %s %s", info["id"], "READY" if info["available"] else "off  ", info.get("reason", info.get("remote", "")))
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    """Human-readable status page (the web app uses the /api/ routes)."""
+    rows = []
+    for engine in ENGINES.values():
+        info = engine.describe()
+        state = "READY" if info["available"] else "off"
+        color = "#2e7d32" if info["available"] else "#9e3a3a"
+        detail = info.get("note") or info.get("reason") or (("via " + info["remote"]) if info.get("remote") else "")
+        variants = ", ".join(info.get("variants", []))
+        rows.append("<tr><td><code>{}</code></td><td style='color:{};font-weight:700'>{}</td><td>{}</td><td>{}</td></tr>".format(
+            html.escape(info["id"]), color, state, html.escape(variants), html.escape(detail)))
+    return """<!doctype html><meta charset="utf-8"><title>Qute server</title>
+<body style="font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 16px;color:#29272a">
+<h1>Qute server {version} is running</h1>
+<p>Open <a href="https://sywan.github.io/Qute/">sywan.github.io/Qute</a> &rarr; Advanced &rarr; Your server URL
+<code>http://localhost:8765</code> &rarr; Connect. This page only shows status; the app talks to <code>/api/</code>.</p>
+<table cellpadding="8" style="border-collapse:collapse;width:100%" border="1">
+<tr><th>Engine</th><th>Status</th><th>Variants</th><th>Details</th></tr>{rows}</table>
+<p>JSON: <a href="/api/engines">/api/engines</a> &middot; <a href="/api/health">/api/health</a> &middot; <a href="/docs">/docs</a></p>
+</body>""".format(version=app.version, rows="".join(rows))
 
 
 @app.get("/api/health")

@@ -42,20 +42,24 @@ DCT="$SERVER/.venv-dctnet/bin/python"
 say "Cloning upstream repositories (pinned commits) into server/vendor"
 "$MAIN" scripts/vendor.py vtoonify instantid --dest vendor
 
-say "Downloading VToonify checkpoints (Hugging Face PKUWilliamYang/VToonify)"
-"$MAIN" scripts/fetch_models.py vtoonify --vtoonify-dir vendor/VToonify --styles cartoon,comic,arcane,pixar
+FAILED=()
+step() {  # description command... — keep going if a download fails (pipefail is on), report at the end
+  local desc="$1"; shift
+  say "$desc"
+  if ! "$@" 2>&1 | tee -a logs/setup.log; then FAILED+=("$desc"); fi
+}
+mkdir -p logs loras
 
-say "Downloading DCT-Net pipelines (ModelScope)"
-"$DCT" scripts/fetch_models.py dctnet || echo "[qute] DCT-Net prefetch failed; models will download on first use."
-
+step "Downloading VToonify checkpoints (Hugging Face PKUWilliamYang/VToonify)" \
+  "$MAIN" scripts/fetch_models.py vtoonify --vtoonify-dir vendor/VToonify --styles cartoon,comic,arcane,pixar
+step "Downloading DCT-Net pipelines (ModelScope; otherwise they download on first use)" \
+  "$DCT" scripts/fetch_models.py dctnet
 if [ "$SKIP_INSTANTID" = "0" ]; then
-  say "Downloading InstantID, antelopev2, SDXL base (fp16, ≈7 GB) and LCM-LoRA"
-  "$MAIN" scripts/fetch_models.py instantid --dest data/instantid
-  "$MAIN" scripts/fetch_models.py antelopev2 --root data/insightface
-  "$MAIN" scripts/fetch_models.py sdxl
-  "$MAIN" scripts/fetch_models.py lcm
+  step "Downloading InstantID ControlNet + IP-Adapter" "$MAIN" scripts/fetch_models.py instantid --dest data/instantid
+  step "Downloading insightface antelopev2 (~360 MB)" "$MAIN" scripts/fetch_models.py antelopev2 --root data/insightface
+  step "Downloading SDXL base, fp16 (~7 GB)" "$MAIN" scripts/fetch_models.py sdxl
+  step "Downloading LCM-LoRA" "$MAIN" scripts/fetch_models.py lcm
 fi
-mkdir -p loras logs
 
 if [ ! -f .env ]; then
   say "Writing server/.env"
@@ -86,4 +90,11 @@ CHIBI_LORA_SCALE=0.9
 EOF
 fi
 
-say "Done. Put your chibi LoRA at server/loras/chibi.safetensors, then start the server with:  ./deploy/mac/run.sh"
+if [ "${#FAILED[@]}" -gt 0 ]; then
+  say "Setup finished with ${#FAILED[@]} failed step(s); see server/logs/setup.log:"
+  printf '   - %s\n' "${FAILED[@]}"
+  echo "   Re-run ./deploy/mac/setup.sh to retry (finished downloads are skipped)."
+else
+  say "Setup complete."
+fi
+say "Put your chibi LoRA at server/loras/chibi.safetensors, then start:  ./deploy/mac/run.sh  → open http://localhost:8765"

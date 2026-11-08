@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Start the Qute server on a Mac: DCT-Net worker on :8766 (TensorFlow venv) and the gateway on
 # :8765 (White-box, InstantID chibi, VToonify; forwards DCT-Net and optional WarpGAN).
-# Stop with Ctrl-C. In Qute → Advanced → Your server URL: http://localhost:8765
+# Stop with Ctrl-C. Status page: http://localhost:8765  ·  In Qute → Advanced → Your server URL: http://localhost:8765
 set -euo pipefail
 
 SERVER="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$SERVER"
 [ -x .venv-main/bin/python ] || { echo "Run ./deploy/mac/setup.sh first."; exit 1; }
 mkdir -p logs
+[ -f .env ] || echo "[qute] WARNING: server/.env is missing (setup.sh did not finish), so only White-box will be available. Re-run ./deploy/mac/setup.sh."
 export PYTORCH_ENABLE_MPS_FALLBACK=1 TOKENIZERS_PARALLELISM=false
 
 WORKER_PID=""
