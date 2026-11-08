@@ -79,9 +79,10 @@ class InstantIDChibiEngine(Engine):
         face_app.prepare(ctx_id=0 if device == "cuda" else -1, det_size=(640, 640))
 
         controlnet = ControlNetModel.from_pretrained(str(config.INSTANTID_CHECKPOINTS / "ControlNetModel"), torch_dtype=dtype)
+        hub = {} if config.HF_USE_TOKEN else {"token": False}  # public models: ignore a stale HF login
         kwargs = {"variant": config.INSTANTID_VARIANT} if config.INSTANTID_VARIANT and dtype == torch.float16 else {}
         pipe = StableDiffusionXLInstantIDPipeline.from_pretrained(
-            config.INSTANTID_BASE_MODEL, controlnet=controlnet, torch_dtype=dtype, **kwargs)
+            config.INSTANTID_BASE_MODEL, controlnet=controlnet, torch_dtype=dtype, **kwargs, **hub)
         if device == "cuda" and config.INSTANTID_CPU_OFFLOAD:
             pipe.enable_model_cpu_offload()
         else:
@@ -101,7 +102,7 @@ class InstantIDChibiEngine(Engine):
         if config.INSTANTID_LCM:
             from diffusers import LCMScheduler
 
-            pipe.load_lora_weights(config.INSTANTID_LCM_LORA, adapter_name="lcm")
+            pipe.load_lora_weights(config.INSTANTID_LCM_LORA, adapter_name="lcm", **hub)
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
             adapters.append("lcm")
             weights.append(1.0)

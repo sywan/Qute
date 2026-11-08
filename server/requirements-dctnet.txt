@@ -3,9 +3,9 @@
 -r requirements.txt
 tensorflow==2.15.1
 torch==2.3.1            # modelscope imports torch utilities even for TF pipelines (CPU build is enough)
-modelscope==1.14.0
-datasets==2.18.0
-pyarrow>=14,<18         # newer pyarrow needs NumPy 2 (TensorFlow 2.15 needs NumPy 1)
+modelscope==1.31.0      # 1.14 fails on ModelScope's current file server ("download incomplete, content_length: None")
+datasets==3.6.0
+pyarrow>=15,<18         # newer pyarrow needs NumPy 2 (TensorFlow 2.15 needs NumPy 1)
 opencv-python-headless==4.10.0.84
 scikit-image>=0.21
 joblib
@@ -15,4 +15,4 @@ addict
 simplejson
 sortedcontainers
 einops
-setuptools<81          # modelscope 1.14 imports pkg_resources
+setuptools<81          # modelscope imports pkg_resources

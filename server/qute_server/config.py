@@ -82,6 +82,7 @@ INSTANTID_DIR = env_path("INSTANTID_DIR")
 INSTANTID_CHECKPOINTS = env_path("INSTANTID_CHECKPOINTS")  # contains ControlNetModel/ and ip-adapter.bin
 INSTANTID_BASE_MODEL = env("INSTANTID_BASE_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
 INSTANTID_VARIANT = env("INSTANTID_VARIANT", "fp16")  # fp16 weights variant of the base model; empty to disable
+HF_USE_TOKEN = env("HF_USE_TOKEN", "0") == "1"  # 1 only if INSTANTID_BASE_MODEL / CHIBI_LORA are gated or private
 INSIGHTFACE_ROOT = env_path("INSIGHTFACE_ROOT")  # contains models/antelopev2
 CHIBI_LORA = env("CHIBI_LORA")  # local .safetensors path or Hugging Face repo id
 CHIBI_LORA_WEIGHT_NAME = env("CHIBI_LORA_WEIGHT_NAME")

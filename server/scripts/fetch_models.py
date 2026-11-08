@@ -47,7 +47,7 @@ def hf_file(repo: str, filename: str, target: Path) -> None:
     from huggingface_hub import hf_hub_download
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    cached = hf_hub_download(repo_id=repo, filename=filename)
+    cached = hf_hub_download(repo_id=repo, filename=filename, token=False)  # public repos: ignore any stale HF login
     shutil.copyfile(cached, str(target))
     log("downloaded", target)
 
@@ -89,14 +89,14 @@ def fetch_antelopev2(root: Path) -> None:
 def fetch_sdxl(repo: str) -> None:
     from huggingface_hub import snapshot_download
 
-    path = snapshot_download(repo, allow_patterns=["*.json", "*.txt", "tokenizer*/*", "*fp16.safetensors"])
+    path = snapshot_download(repo, allow_patterns=["*.json", "*.txt", "tokenizer*/*", "*fp16.safetensors"], token=False)
     log("SDXL base ready in", path)
 
 
 def fetch_lcm() -> None:
     from huggingface_hub import hf_hub_download
 
-    hf_hub_download("latent-consistency/lcm-lora-sdxl", "pytorch_lora_weights.safetensors")
+    hf_hub_download("latent-consistency/lcm-lora-sdxl", "pytorch_lora_weights.safetensors", token=False)
     log("LCM-LoRA ready")
 
 
