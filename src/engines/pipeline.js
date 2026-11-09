@@ -4,7 +4,7 @@
 //         -> (cute grade) -> (detail retention) -> PNG
 import { getStyleModel } from '../styleTransfer';
 import { canvasToBlob, imageDataToCanvas, loadImage, nextFrame, resizeImageData, toImageData } from './canvas';
-import { applyBeauty, applyWarp, blend, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
+import { applyBeautyROI, applyWarp, blend, guidedUpsample, scaleFaces, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
 import { detectFaces, runCartoonModel } from './onnx';
 import { engineById } from './registry';
 import { serverStylize } from './server';
@@ -66,7 +66,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
   if (warpedFaces.length && hasBeauty(settings.beauty)) {
     onStep('beautifying');
     await nextFrame();
-    warped = toImageData_(applyBeauty(warped, warpedFaces, settings.beauty));
+    warped = toImageData_(applyBeautyROI(warped, warpedFaces, settings.beauty));
   }
 
   // 3. Base engine.
@@ -76,7 +76,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
     let upload = toImageData(photoImage, 1024);
     if (hasBeauty(settings.beauty)) {
       // Beautify before sending, so server engines also work from the retouched photo.
-      try { upload = toImageData_(applyBeauty(upload, await detectFaces(upload), settings.beauty)); } catch (error) { console.warn('Beauty skipped', error); }
+      try { upload = toImageData_(applyBeautyROI(upload, await detectFaces(upload), settings.beauty)); } catch (error) { console.warn('Beauty skipped', error); }
     }
     const photoBlob = await canvasToBlob(imageDataToCanvas(upload));
     const refBlob = referenceImage ? await canvasToBlob(imageDataToCanvas(toImageData(referenceImage, 768))) : null;
@@ -123,8 +123,48 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
     const original = resizeImageData(warped, result.width, result.height);
     result = toImageData_(blend(result, original, Math.min(0.6, settings.detail)));
   }
-  const blob = await canvasToBlob(imageDataToCanvas(result));
-  return { blob, faces: faces.length, engine: engine.id };
+  // 7. High-resolution output (2K / 4K / 5K): the model runs at the processing size; the result is
+  // then guided-upsampled with the full-resolution photo, so edges come out crisp. The output is
+  // never larger than the original photo (no invented pixels).
+  const target = Number(settings.outputSize) || 0;
+  const sourceLong = Math.max(photoImage.naturalWidth || photoImage.width, photoImage.naturalHeight || photoImage.height);
+  const resultLong = Math.max(result.width, result.height);
+  const outLong = Math.min(target, sourceLong);
+  let upscaled = false;
+  if (outLong > resultLong * 1.05) {
+    onStep('upscaling');
+    await nextFrame();
+    try {
+      const full = toImageData(photoImage, outLong);
+      if (engine.kind === 'browser') {
+        // Rebuild the exact photo the model saw, at full resolution: same warp, same beauty.
+        const s = full.width / photo.width;
+        let guide = full, guideFaces = scaleFaces(faces, s);
+        if (faces.length && hasWarp(warpParams(settings))) {
+          const plan = planChibiWarp(guideFaces, warpParams(settings), full.width, full.height);
+          const w = applyWarp(full, plan);
+          guide = toImageData_(w);
+          guideFaces = mapFaces(guideFaces, plan);
+        }
+        if (guideFaces.length && hasBeauty(settings.beauty)) guide = toImageData_(applyBeautyROI(guide, guideFaces, settings.beauty));
+        const guideLow = resizeImageData(warped, result.width, result.height);
+        const W = Math.round(guide.width), H = Math.round(guide.width * result.height / result.width);
+        const guideSized = H === guide.height ? guide : resizeImageData(guide, W, H);
+        result = toImageData_(guidedUpsample(result, guideLow, guideSized, { radius: 1, eps: 2e-3 }));
+      } else {
+        // Server results may be cropped or redrawn, so they are not aligned with the photo: plain resize.
+        const scale = outLong / resultLong;
+        result = resizeImageData(result, Math.round(result.width * scale), Math.round(result.height * scale));
+      }
+      upscaled = true;
+    } catch (error) {
+      console.warn('High-resolution output failed; keeping the processing size', error);
+    }
+  }
+  const pixels = result.width * result.height;
+  const type = pixels > 4.2e6 ? 'image/jpeg' : 'image/png'; // 4K/5K PNGs would be 20–60 MB
+  const blob = await canvasToBlob(imageDataToCanvas(result), type, 0.95);
+  return { blob, faces: faces.length, engine: engine.id, width: result.width, height: result.height, upscaled, limitedBySource: target > sourceLong && target > resultLong };
 }
 
 function toImageData_(img) {

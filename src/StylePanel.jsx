@@ -83,8 +83,14 @@ export default function StylePanel(props) {
       </fieldset>}
       <Slider label={t('cuteGrade')} value={settings.cute} onChange={set('cute')} disabled={busy} />
       {engine?.kind === 'browser' && <Slider label={t('detailRetention')} value={settings.detail} max={0.6} onChange={set('detail')} disabled={busy} help={t('detailRetentionHelp')} />}
-      <label className="field"><span>{t('outputSize')}</span>
-        <select value={settings.maxSide} disabled={busy} onChange={(event) => updateSettings({ maxSide: Number(event.target.value) })}>{[512, 768, 1024].map((s) => <option key={s} value={s}>{s}px{s === 1024 ? ' · ' + t('slower') : ''}</option>)}</select>
+<label className="field"><span>{t('outputSize')}</span>
+        <select value={settings.maxSide} disabled={busy} onChange={(event) => updateSettings({ maxSide: Number(event.target.value) })}>{[512, 768, 1024, 1536].map((v) => <option key={v} value={v}>{v}px{v >= 1024 ? ' · ' + t('slower') : ''}</option>)}</select>
+      </label>
+      <label className="field"><span>{t('outputResolution')}</span>
+        <select value={settings.outputSize} disabled={busy} onChange={(event) => updateSettings({ outputSize: Number(event.target.value) })}>
+          {[[0, t('resSame')], [2048, '2K · 2048 px'], [3840, '4K · 3840 px'], [5120, '5K · 5120 px']].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+        </select>
+        <small className="field-help">{t('outputResolutionHelp')}</small>
       </label>
       <div className="server-box span-2">
         <label className="field"><span>{t('serverURL')}</span>

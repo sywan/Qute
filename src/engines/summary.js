@@ -39,6 +39,7 @@ export function describePipeline(settings, { hasReference = false, serverEngines
   if (settings.cute > 0) steps.push({ key: 'sum_cute', values: { amount: pct(settings.cute) } });
   if (browser && settings.detail > 0) steps.push({ key: 'sum_detail', values: { amount: pct(Math.min(0.6, settings.detail)) } });
   if (!steps.some((s) => !s.warn)) steps.push({ key: 'sum_nothing', values: {} });
+  else if ((settings.outputSize || 0) > (settings.maxSide || 768)) steps.push({ key: browser ? 'sum_upscale' : 'sum_resize', values: { size: settings.outputSize >= 5120 ? '5K' : settings.outputSize >= 3840 ? '4K' : '2K' } });
   return steps;
 }
 

@@ -19,13 +19,14 @@ test('the user example: chibi + own reference + White-box, no server', () => {
     'Face changes: bigger head 100%, bigger eyes 80%, smaller chin 60%, shorter body 80%',
     'White-box Cartoonization',
     'Reference colours 50%',
-    'Soft bright grade 40%'
+    'Soft bright grade 40%',
+    'Enlarged to 2K with your photo as a guide'
   ]);
 });
 
 test('bold with a reference lists brushwork with face protection', () => {
   const steps = text(settingsForGoal('bold', { hasReference: true }), { hasReference: true });
-  assert.deepEqual(steps, ['AnimeGANv3 · Shinkai', 'Reference brushwork 70%, face protection 70%', 'Reference colours 60%']);
+  assert.deepEqual(steps, ['AnimeGANv3 · Shinkai', 'Reference brushwork 70%, face protection 70%', 'Reference colours 60%', 'Enlarged to 2K with your photo as a guide']);
 });
 
 test('server engines: warnings when not connected, extras when connected', () => {
@@ -66,7 +67,7 @@ test('custom engines advertised by a server are listed, labelled and cleared', a
   assert.equal(engineLabel(t, 'dctnet', 'en'), 'DCT-Net', 'built-in engines keep their translations');
   assert.deepEqual(defaultCustomParams(e), { strength: 0.8 });
   const s = { ...settingsForGoal('custom'), engine: 'example-sepia' };
-  assert.deepEqual(describePipeline(s, { serverEngines: ['example-sepia'] }).map((st) => formatStep(st, t, (id) => engineLabel(t, id, 'en'))), ['Sepia on your server']);
+  assert.deepEqual(describePipeline(s, { serverEngines: ['example-sepia'] }).map((st) => formatStep(st, t, (id) => engineLabel(t, id, 'en'))), ['Sepia on your server', 'Enlarged to 2K']);
   setServerEngineInfo([]);
   assert.equal(engineById('example-sepia'), undefined);
   assert.ok(!allEngines().some((x) => x.custom));

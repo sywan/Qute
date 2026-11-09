@@ -187,7 +187,7 @@ function App() {
       const url = URL.createObjectURL(output.blob);
       replaceURL(resultRef, url);
       setResult({ url, blob: output.blob });
-      setResultMeta({ engine: output.engine, faces: output.faces });
+      setResultMeta({ engine: output.engine, faces: output.faces, width: output.width, height: output.height, limited: output.limitedBySource });
       const engine = engineById(output.engine);
       setStatusKey(engine.kind === 'server' ? 'doneServer' : Object.values(settings.warp).some((v) => v > 0) && !output.faces ? 'doneNoFaces' : 'done');
     } catch (error) {
@@ -199,7 +199,7 @@ function App() {
     if (!result) return setStatusKey('noResult');
     const anchor = document.createElement('a');
     anchor.href = result.url;
-    anchor.download = 'qute-' + goal + '-' + Date.now() + '.png';
+    anchor.download = 'qute-' + goal + '-' + Date.now() + (result.blob.type === 'image/jpeg' ? '.jpg' : '.png');
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -207,7 +207,7 @@ function App() {
   };
   const share = async () => {
     if (!result) return setStatusKey('noResult');
-    const file = new File([result.blob], 'qute-' + goal + '.png', { type: 'image/png' });
+    const file = new File([result.blob], 'qute-' + goal + (result.blob.type === 'image/jpeg' ? '.jpg' : '.png'), { type: result.blob.type || 'image/png' });
     if (!navigator.canShare?.({ files: [file] }) || !navigator.share) return setStatusKey('shareUnavailable');
     try { await navigator.share({ files: [file], title: 'Qute' }); }
     catch (error) { if (error.name !== 'AbortError') setStatusKey('shareFailed'); }
@@ -251,7 +251,7 @@ function App() {
               </div>
               <div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div>
             </div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {engineLabel(t, resultMeta.engine, language)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {engineLabel(t, resultMeta.engine, language)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}{resultMeta.width ? ' · ' + resultMeta.width + '×' + resultMeta.height : ''}{resultMeta.limited ? ' (' + t('resLimited') + ')' : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>

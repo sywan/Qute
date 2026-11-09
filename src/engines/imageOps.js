@@ -451,3 +451,90 @@ export function applyBeauty(img, faces, params) {
   }
   return out;
 }
+
+/** Beauty on the face regions only (much faster on large images): same result as applyBeauty. */
+export function applyBeautyROI(img, faces, params) {
+  if (!faces.length) return img;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const f of faces) {
+    x0 = Math.min(x0, f.x - f.w * 0.8); x1 = Math.max(x1, f.x + f.w * 0.8);
+    y0 = Math.min(y0, f.y - f.h * 0.9); y1 = Math.max(y1, f.y + f.h * 0.9);
+  }
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+  x1 = Math.min(img.width, Math.ceil(x1)); y1 = Math.min(img.height, Math.ceil(y1));
+  const w = x1 - x0, h = y1 - y0;
+  if (w <= 0 || h <= 0) return img;
+  const crop = makeImage(w, h);
+  for (let y = 0; y < h; y++) crop.data.set(img.data.subarray(((y + y0) * img.width + x0) * 4, ((y + y0) * img.width + x0 + w) * 4), y * w * 4);
+  const shifted = faces.map((f) => ({ ...f, x: f.x - x0, y: f.y - y0, landmarks: f.landmarks.map(([px, py]) => [px - x0, py - y0]) }));
+  const done = applyBeauty(crop, shifted, params);
+  if (done === crop) return img;
+  const out = makeImage(img.width, img.height, new Uint8ClampedArray(img.data));
+  for (let y = 0; y < h; y++) out.data.set(done.data.subarray(y * w * 4, (y + 1) * w * 4), ((y + y0) * img.width + x0) * 4);
+  return out;
+}
+
+/** Scale face boxes and landmarks by s (to reuse detections at another resolution). */
+export function scaleFaces(faces, s) {
+  return faces.map((f) => ({ ...f, x: f.x * s, y: f.y * s, w: f.w * s, h: f.h * s, landmarks: f.landmarks.map(([x, y]) => [x * s, y * s]) }));
+}
+
+function luminance(img) {
+  const out = new Float32Array(img.width * img.height);
+  for (let i = 0, p = 0; i < out.length; i++, p += 4) out[i] = (0.299 * img.data[p] + 0.587 * img.data[p + 1] + 0.114 * img.data[p + 2]) / 255;
+  return out;
+}
+
+/**
+ * Guided upsampling (Fast Guided Filter: He & Sun 2015; Wu et al., CVPR 2018 — the same idea as
+ * White-box Cartoonization's fast_guided_filter). The stylised low-resolution result `low` is
+ * explained locally as a linear function of the low-resolution guide (the photo the model saw);
+ * those coefficients are upsampled and applied to the full-resolution photo `guideHigh`, so the
+ * output keeps the style's colours and shading while edges come out sharp at full resolution.
+ * eps (0..1 scale) controls how much fine photo detail returns: larger = smoother, more painterly.
+ */
+export function guidedUpsample(low, guideLow, guideHigh, { radius = 2, eps = 4e-3 } = {}) {
+  const wl = low.width, hl = low.height;
+  const gl = guideLow.width === wl && guideLow.height === hl ? luminance(guideLow) : null;
+  if (!gl) throw new Error('guideLow must match low');
+  const W = guideHigh.width, H = guideHigh.height;
+  const gh = guideHigh.data;
+  const out = makeImage(W, H);
+  const meanI = boxMean(gl, wl, hl, radius);
+  const ii = new Float32Array(gl.length);
+  for (let i = 0; i < gl.length; i++) ii[i] = gl[i] * gl[i];
+  const varI = boxMean(ii, wl, hl, radius);
+  for (let i = 0; i < gl.length; i++) varI[i] -= meanI[i] * meanI[i];
+  const coeffs = [];
+  for (let c = 0; c < 3; c++) {
+    const S = new Float32Array(gl.length), IS = new Float32Array(gl.length);
+    for (let i = 0; i < gl.length; i++) { S[i] = low.data[i * 4 + c] / 255; IS[i] = S[i] * gl[i]; }
+    const meanS = boxMean(S, wl, hl, radius), meanIS = boxMean(IS, wl, hl, radius);
+    const a = new Float32Array(gl.length), b = new Float32Array(gl.length);
+    for (let i = 0; i < gl.length; i++) {
+      a[i] = (meanIS[i] - meanI[i] * meanS[i]) / (varI[i] + eps);
+      b[i] = meanS[i] - a[i] * meanI[i];
+    }
+    coeffs.push([boxMean(a, wl, hl, radius), boxMean(b, wl, hl, radius)]);
+  }
+  const sx = wl / W, sy = hl / H;
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(hl - 1, Math.max(0, (y + 0.5) * sy - 0.5));
+    const y0 = Math.floor(fy), y1 = Math.min(hl - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(wl - 1, Math.max(0, (x + 0.5) * sx - 0.5));
+      const x0 = Math.floor(fx), x1 = Math.min(wl - 1, x0 + 1), tx = fx - x0;
+      const i00 = y0 * wl + x0, i10 = y0 * wl + x1, i01 = y1 * wl + x0, i11 = y1 * wl + x1;
+      const p = (y * W + x) * 4;
+      const I = (0.299 * gh[p] + 0.587 * gh[p + 1] + 0.114 * gh[p + 2]) / 255;
+      for (let c = 0; c < 3; c++) {
+        const [A, B] = coeffs[c];
+        const a = (A[i00] * (1 - tx) + A[i10] * tx) * (1 - ty) + (A[i01] * (1 - tx) + A[i11] * tx) * ty;
+        const b = (B[i00] * (1 - tx) + B[i10] * tx) * (1 - ty) + (B[i01] * (1 - tx) + B[i11] * tx) * ty;
+        out.data[p + c] = (a * I + b) * 255;
+      }
+      out.data[p + 3] = 255;
+    }
+  }
+  return out;
+}

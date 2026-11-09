@@ -148,6 +148,7 @@ export function settingsForGoal(goalId, { hasReference = false, serverEngines = 
     exaggeration: 1,
     identity: 0.8,
     maxSide: 768,
+    outputSize: 2048,
     customParams: {},
     beauty: { ...(goal.beauty || defaultBeauty) }
   };

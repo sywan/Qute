@@ -149,3 +149,27 @@ test('fuller hair and cheeks: outline moves out, face interior fixed, mapping st
   assert.ok(near.outer * near.rx <= 30 + 1e-9 || near.outer === 1.3, 'stops halfway to the neighbour');
   assert.ok(near.amount < plan.fields[0].amount);
 });
+
+test('guided upsampling: keeps low-res colours, restores full-res edges', async () => {
+  const { guidedUpsample, applyBeautyROI, applyBeauty } = await import('../src/engines/imageOps.js');
+  const W = 256, H = 256, w = 64, h = 64;
+  const high = makeImage(W, H), lowGuide = makeImage(w, h), styled = makeImage(w, h);
+  // photo: sharp vertical edge at x = 130 (not on a low-res pixel boundary)
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const v = x < 130 ? 40 : 220; high.data.set([v, v, v, 255], (y * W + x) * 4); }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0; for (let k = 0; k < 4; k++) s += (x * 4 + k < 130 ? 40 : 220); const v = s / 4;
+    lowGuide.data.set([v, v, v, 255], (y * w + x) * 4);
+    styled.data.set(v < 130 ? [20, 40, 160, 255] : [250, 200, 60, 255], (y * w + x) * 4); // stylised: blue / yellow
+  }
+  const up = guidedUpsample(styled, lowGuide, high, { radius: 2, eps: 1e-4 });
+  assert.equal(up.width, W); assert.equal(up.height, H);
+  const px = (x, y) => [...up.data.slice((y * W + x) * 4, (y * W + x) * 4 + 3)];
+  assert.ok(px(60, 100)[2] > 120 && px(60, 100)[0] < 80, 'left stays blue');
+  assert.ok(px(200, 100)[0] > 200 && px(200, 100)[2] < 110, 'right stays yellow');
+  assert.ok(Math.abs(px(128, 100)[0] - px(127, 100)[0]) < 30 && px(131, 100)[0] - px(128, 100)[0] > 120, 'edge is sharp at the photo edge');
+  // ROI beauty equals full beauty
+  const img = makeImage(120, 120);
+  for (let i = 0; i < img.data.length; i += 4) img.data.set([200 + (i % 7), 150, 130, 255], i);
+  const face = { x: 60, y: 60, w: 40, h: 48, landmarks: [[52, 54], [68, 54], [60, 62], [54, 70], [66, 70]] };
+  assert.deepEqual([...applyBeautyROI(img, [face], { smooth: 1, brighten: 0.5 }).data], [...applyBeauty(img, [face], { smooth: 1, brighten: 0.5 }).data].map((v, i) => v));
+});
