@@ -5,6 +5,7 @@ import { runPipeline } from './engines/pipeline';
 import { engineById, settingsForGoal, withReference, withServerEngines } from './engines/registry';
 import { fetchServerEngines, normalizeServerURL } from './engines/server';
 import StylePanel from './StylePanel';
+import { ACCEPT, normalizeImageFile } from './imageDecode';
 import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame } from './cameraEffects';
 import './styles.css';
 
@@ -32,6 +33,7 @@ function App() {
   const [resultMeta, setResultMeta] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
+  const [formatHint, setFormatHint] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraRequesting, setCameraRequesting] = useState(false);
   const [cameraSettings, setCameraSettings] = useState(defaultCameraSettings);
@@ -74,30 +76,32 @@ function App() {
     setResult(null);
     setResultMeta(null);
   };
-  const acceptFile = (file, kind) => {
+  const acceptFile = async (file, kind) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) return setStatusKey('badFormat');
-    if (file.size > 20 * 1024 * 1024) return setStatusKey('tooLarge');
-    const url = URL.createObjectURL(file);
-    const testImage = new Image();
-    testImage.onload = () => {
-      if (kind === 'photo') {
-        replaceURL(photoRef, url);
-        setPhoto({ url, name: file.name });
-        clearResult();
-        setStatusKey('ready');
-        stopCamera();
-      } else {
-        replaceURL(referenceRef, url);
-        setReference({ url, name: file.name });
-        if (styleId === 'none') setSettings((current) => withReference(current, goal, true));
-        setStyleId('custom');
-        clearResult();
-        setStatusKey('');
-      }
-    };
-    testImage.onerror = () => { URL.revokeObjectURL(url); setStatusKey('badFormat'); };
-    testImage.src = url;
+    let normalized;
+    try {
+      setStatusKey('readingImage');
+      normalized = await normalizeImageFile(file);
+    } catch (error) {
+      setFormatHint(error.format || '');
+      return setStatusKey(error.code || 'badFormat');
+    }
+    const url = URL.createObjectURL(normalized.file);
+    const name = file.name + (normalized.converted ? ' → ' + normalized.file.name.split('.').pop().toUpperCase() : '');
+    if (kind === 'photo') {
+      replaceURL(photoRef, url);
+      setPhoto({ url, name });
+      clearResult();
+      setStatusKey(normalized.converted ? 'convertedReady' : 'ready');
+      stopCamera();
+    } else {
+      replaceURL(referenceRef, url);
+      setReference({ url, name });
+      if (styleId === 'none') setSettings((current) => withReference(current, goal, true));
+      setStyleId('custom');
+      clearResult();
+      setStatusKey(normalized.converted ? 'convertedReference' : '');
+    }
   };
   const openCamera = async () => {
     if (cameraRequesting) return;
@@ -243,17 +247,17 @@ function App() {
             </div>
               : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {t('engine_' + resultMeta.engine)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
-            <input ref={fileInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
+            <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
           <StylePanel {...{ t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} />
-          <input ref={referenceInput} type="file" accept="image/*" hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
+          <input ref={referenceInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
         </div>
-        <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey) : ''}</p>
+        <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey).replace('{format}', (formatHint || '?').toUpperCase()) : ''}</p>
       </section>
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.2 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.3 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
