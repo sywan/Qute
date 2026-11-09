@@ -108,3 +108,4 @@ details.advanced-panel summary{display:flex;align-items:center;gap:10px}
 .why-note{margin:12px 0 0;font-size:13px;line-height:1.7;color:#6c6868}.why-note strong{color:#4d4552}
 @media(max-width:850px){.intro{grid-template-columns:1fr;padding:4px 0 18px}.intro-facts ul{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.intro h1{font-size:30px}.intro-facts ul{grid-template-columns:1fr}.why-compare{padding:10px}}
+.footer-qr{color:#8f6cc4;text-decoration:none;font-weight:700}.footer-qr:hover{text-decoration:underline}

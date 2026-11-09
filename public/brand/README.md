@@ -11,6 +11,9 @@ as images, for favicons, slides, documents and social posts.
 | `qute-logo-192.png` | Android / web-app icon |
 | `qute-logo-180.png` | Apple touch icon |
 | `qute-logo-32.png`, `favicon.ico` (16/32/48) | Browser tab icon |
+| `qute-qr-code.png` | QR code for sharing; opens https://sywan.github.io/Qute/ (720 × 720 px, verified by decoding) |
 
 Colours: purple `#a48ad5`, white `#ffffff`, page background `#f9f5ee`, text `#29272a`.
 The "Q" outline comes from Gelasio Bold (metric-compatible with Georgia; SIL Open Font License 1.1).
+
+The QR code is also online at https://sywan.github.io/Qute/brand/qute-qr-code.png and linked in the app's footer.

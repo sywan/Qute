@@ -63,6 +63,8 @@ python -m pytest -q tests
 - Apple Silicon Mac：`cd server && ./deploy/mac/setup.sh && ./deploy/mac/run.sh`
 - 詳見 [server/README.md](server/README.md)；連線後在 Qute「進階設定」輸入 `http://localhost:8765`。
 
+分享用 QR 碼（掃描即開啟 https://sywan.github.io/Qute/）：[public/brand/qute-qr-code.png](public/brand/qute-qr-code.png)，網站頁尾也有連結。
+
 Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，GitHub Actions 會自動建置並將 `dist/` 發布到 GitHub Pages。網站：[https://sywan.github.io/Qute/](https://sywan.github.io/Qute/)。
 
 ## 來源與依賴
