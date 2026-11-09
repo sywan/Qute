@@ -116,3 +116,15 @@ test('beauty: smoothing only touches skin, lips turn redder, nothing without fac
   assert.deepEqual([...out.data.slice(0, 8)], [...img.data.slice(0, 8)], 'background untouched');
   assert.equal(applyBeauty(img, [], { smooth: 1 }), img);
 });
+
+test('fuller hair and cheeks add bulges that avoid the eyes and shrink in groups', () => {
+  const mk = (x) => ({ x, y: 150, w: 60, h: 70, landmarks: [[x - 12, 140], [x + 12, 140], [x, 152], [x - 10, 165], [x + 10, 165]] });
+  const solo = planChibiWarp([mk(150)], { hair: 1, cheeks: 1 }, 300, 300).featureBulges;
+  assert.equal(solo.length, 5, 'crown + two temples + two cheeks');
+  const crown = solo[0];
+  assert.ok(crown.y + crown.r < 140, 'crown circle stays above the eyes');
+  assert.ok(solo.every((b) => b.amount > 0), 'all enlarge');
+  const group = planChibiWarp([mk(100), mk(160)], { hair: 1, cheeks: 1 }, 300, 300).featureBulges;
+  assert.ok(group.every((b) => b.r <= 0.5 * 60 + 1e-9), 'radii limited by the neighbour 60 px away');
+  assert.equal(planChibiWarp([mk(150)], { hair: 0, cheeks: 0 }, 300, 300).featureBulges.length, 0);
+});

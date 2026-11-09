@@ -3,7 +3,7 @@
 import { engineById } from './registry.js';
 
 const pct = (v) => Math.round(v * 100) + '%';
-const warpOrder = ['head', 'eyes', 'chin', 'body'];
+const warpOrder = ['head', 'eyes', 'hair', 'cheeks', 'chin', 'body'];
 
 export function describePipeline(settings, { hasReference = false, serverEngines = [] } = {}) {
   const engine = engineById(settings.engine);

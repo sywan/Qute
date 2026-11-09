@@ -3,7 +3,7 @@ import { allEngines, defaultCustomParams, engineById, engineDescription, engineL
 import { describePipeline, formatStep } from './engines/summary';
 
 const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸', beauty: '✿', custom: '⚙' };
-const warpKeys = ['head', 'eyes', 'chin', 'body'];
+const warpKeys = ['head', 'eyes', 'hair', 'cheeks', 'chin', 'body'];
 const beautyKeys = ['smooth', 'brighten', 'lips', 'fuller'];
 export const WIDE_QUERY = '(min-width: 1500px)';
 
@@ -78,7 +78,7 @@ export default function StylePanel(props) {
       {engine?.id === 'warpgan' && <Slider label={t('exaggeration')} value={settings.exaggeration} min={0.2} max={2} step={0.1} onChange={set('exaggeration')} disabled={busy} percent={false} />}
       {engine?.id === 'instantid-chibi' && <Slider label={t('identity')} value={settings.identity} min={0.3} max={1.2} onChange={set('identity')} disabled={busy} help={t('identityHelp')} />}
       {engine?.kind === 'browser' && <fieldset className="warp-controls span-2"><legend>{t('warpTitle')}</legend>
-        {warpKeys.map((key) => <Slider key={key} label={t('warp_' + key)} value={settings.warp[key]} onChange={setWarp(key)} disabled={busy} />)}
+        {warpKeys.map((key) => <Slider key={key} label={t('warp_' + key)} value={settings.warp[key] || 0} onChange={setWarp(key)} disabled={busy} />)}
         <small>{t('warpHelp')}</small>
       </fieldset>}
       <Slider label={t('cuteGrade')} value={settings.cute} onChange={set('cute')} disabled={busy} />

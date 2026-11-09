@@ -96,7 +96,7 @@ export function defaultCustomParams(engine) {
   return Object.fromEntries((engine?.paramSchema || []).filter((p) => p.default !== undefined).map((p) => [p.name, p.default]));
 }
 
-export const defaultWarp = { head: 0, eyes: 0, chin: 0, body: 0 };
+export const defaultWarp = { head: 0, eyes: 0, chin: 0, body: 0, hair: 0, cheeks: 0 };
 export const defaultBeauty = { smooth: 0, brighten: 0, lips: 0, fuller: 0 };
 
 // Goal presets: what the visitor wants, mapped to an engine and tuned parameters.
@@ -138,7 +138,7 @@ export function settingsForGoal(goalId, { hasReference = false, serverEngines = 
     goal: goalId,
     engine: useServer ? goal.serverEngine : goal.engine,
     variant: '',
-    warp: useServer ? { ...defaultWarp } : { ...goal.warp },
+    warp: useServer ? { ...defaultWarp } : { ...defaultWarp, ...goal.warp },
     detail: goal.detail,
     cute: goal.cute,
     palette: hasReference ? goal.reference.palette : 0,
@@ -166,10 +166,10 @@ export function withReference(settings, goalId, hasReference) {
 export function withServerEngines(settings, goalId, serverEngines) {
   const goal = goals[goalId];
   // A custom engine from a server that is no longer connected: fall back to the goal's engine.
-  if (!engineById(settings.engine)) settings = { ...settings, engine: goal.engine, warp: { ...goal.warp } };
+  if (!engineById(settings.engine)) settings = { ...settings, engine: goal.engine, warp: { ...defaultWarp, ...goal.warp } };
   if (!goal.serverEngine) return settings;
   const available = serverEngines.includes(goal.serverEngine);
   if (available && settings.engine === goal.engine) return { ...settings, engine: goal.serverEngine, warp: { ...defaultWarp } };
-  if (!available && settings.engine === goal.serverEngine) return { ...settings, engine: goal.engine, warp: { ...goal.warp } };
+  if (!available && settings.engine === goal.serverEngine) return { ...settings, engine: goal.engine, warp: { ...defaultWarp, ...goal.warp } };
   return settings;
 }

@@ -42,6 +42,8 @@ export function planChibiWarp(faces, params, width, height) {
   const chin = clamp(params.chin ?? 0, 0, 1);
   const body = clamp(params.body ?? 0, 0, 1);
   const lips = clamp(params.lips ?? 0, 0, 1); // beauty: fuller lips
+  const hair = clamp(params.hair ?? 0, 0, 1);
+  const cheeks = clamp(params.cheeks ?? 0, 0, 1);
   const headBulges = [], featureBulges = [];
   let squashFrom = null;
   const centers = faces.map((f) => [f.x, f.y - f.h * 0.12]);
@@ -68,6 +70,24 @@ export function planChibiWarp(faces, params, width, height) {
     if (lips > 0) {
       const mouthW = Math.hypot(lm[0] - rm[0], lm[1] - rm[1]) || size * 0.35;
       featureBulges.push({ x: (rm[0] + lm[0]) / 2, y: (rm[1] + lm[1]) / 2 + mouthW * 0.08, r: mouthW * 0.75, amount: 0.25 * lips });
+    }
+    // Distance to the nearest other face, so group members' changes never collide.
+    let nearest = Infinity;
+    for (let j = 0; j < centers.length; j++) if (j !== i) nearest = Math.min(nearest, Math.hypot(centers[j][0] - centers[i][0], centers[j][1] - centers[i][1]));
+    if (hair > 0) {
+      // Crown above the hairline plus both temples; circles stay above the eyes.
+      const top = { x: f.x, y: f.y - f.h * 0.72, r: Math.min(f.h * 0.5, 0.5 * nearest), amount: 0.3 * hair };
+      if (top.y - top.r * 0.3 > 0) featureBulges.push(top);
+      for (const side of [-1, 1]) {
+        const sx = f.x + side * f.w * 0.66;
+        const r = Math.min(f.w * 0.36, 0.35 * nearest);
+        if (sx > 0 && sx < width) featureBulges.push({ x: sx, y: f.y - f.h * 0.32, r, amount: 0.22 * hair });
+      }
+    }
+    if (cheeks > 0) {
+      for (const side of [-1, 1]) {
+        featureBulges.push({ x: f.x + side * f.w * 0.34, y: f.y + f.h * 0.2, r: Math.min(f.w * 0.34, 0.3 * nearest), amount: 0.32 * cheeks });
+      }
     }
     if (chin > 0) {
       const mouthX = (rm[0] + lm[0]) / 2, mouthY = (rm[1] + lm[1]) / 2;
