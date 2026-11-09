@@ -1,6 +1,20 @@
-# Qute v0.3.4
+# Qute v0.3.5
 
 免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
+
+## 定位：為什麼用 Qute？／Why Qute?
+
+雲端大型 AI 影像模型（聊天助理與設計工具內建的影像生成）能把照片重新畫得很漂亮。Qute 刻意只做較單純的事：用在使用者自己裝置上執行的小型開源模型，為照片套用選定的畫風。成品通常不如雲端大模型精緻，但具備雲端服務做不到的特性：
+
+- **隱私**：照片在瀏覽器內處理，不上傳
+- **免費、免登入、不耗 AI 額度**：模型與執行環境首次下載（約 20–30 MB）後，轉換不再需要網路傳輸
+- **忠於原照、可控制**：轉換原照而非重新創作；每一步可調整，相同設定得到相同結果
+- **公開透明**：演算法皆有論文與原始碼出處，適合教學與方法比較
+- **可升級**：需要更強效果時，自架 Qute 伺服器（DCT-Net、VToonify、InstantID、WarpGAN），仍不經雲端
+
+Large cloud AI image models can redraw a photo beautifully. Qute deliberately does something narrower: it applies a chosen style to your photo with small open-source models running on your own device. Results are often less polished, but photos stay private, there is no account, cost or AI quota, the original composition is kept, every step is visible and repeatable, each algorithm is a published method, and a self-hosted server adds stronger models when needed. When you want a completely re-imagined picture and are comfortable uploading the photo, a cloud image generator will usually look better.
+
+網站上的「為什麼用 Qute？」段落（頁首連結）含完整說明與比較表。
 
 ## 功能
 

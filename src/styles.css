@@ -82,3 +82,29 @@ details.advanced-panel summary{display:flex;align-items:center;gap:10px}
 
 .action-panel .pipeline-summary{margin-top:0}
 .layout-medium .advanced-panel .advanced-body{column-gap:28px}
+/* ---- v0.3.5 compact intro + "Why Qute" ---- */
+.intro{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:clamp(16px,3vw,48px);align-items:center;min-height:0;padding:6px 0 22px}
+.intro-copy{padding:0}
+.intro .eyebrow{margin:0 0 8px;font-size:11px}
+.intro h1{font-size:clamp(30px,3.2vw,46px);line-height:1.15;letter-spacing:-.04em;margin:0 0 10px}
+.intro .lead{font-size:15px;line-height:1.7;max-width:640px}
+.intro-facts ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.intro-facts li{display:flex;gap:8px;align-items:flex-start;background:#fff;border:1px solid #ece4df;border-radius:12px;padding:9px 11px;font-size:12.5px;line-height:1.4;color:#5d5361}
+.intro-facts li span{color:#a58bd1}
+.why-link{display:inline-block;margin-top:10px;font-size:13px;font-weight:700;color:#8f6cc4;text-decoration:none}.why-link:hover{text-decoration:underline}
+.hero-art{display:none}
+.why{padding:clamp(36px,5vw,70px) 0 30px;scroll-margin-top:16px}
+.why-head{max-width:900px}.why-head h2{font-size:clamp(24px,2.4vw,34px);letter-spacing:-.03em;line-height:1.3;margin:0 0 12px}.why-head p{color:#6c6868;font-size:15px;line-height:1.8;margin:0}
+.why-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:22px 0}
+.why-cards article{background:#fff;border:1px solid #eee7e2;border-radius:16px;padding:16px}
+.why-cards h3{font-size:15px;margin:0 0 6px}.why-cards p{font-size:13px;line-height:1.7;color:#6c6868;margin:0}
+.why-compare{background:#fff;border:1px solid #eee7e2;border-radius:16px;padding:16px;overflow-x:auto}
+.why-compare table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+.why-compare caption{caption-side:top;text-align:left;font-weight:700;font-size:13px;color:#5d5361;padding:0 0 10px}
+.why-compare th,.why-compare td{text-align:left;padding:9px 10px;border-top:1px solid #f0eae6;vertical-align:top;line-height:1.5}
+.why-compare thead th{border-top:0;color:#9b7bc8;font-size:12px}
+.why-compare tbody th{color:#4d4552;font-weight:700;width:22%}
+.why-compare td:nth-child(2){color:#29272a}.why-compare td:nth-child(3){color:#7d7578}
+.why-note{margin:12px 0 0;font-size:13px;line-height:1.7;color:#6c6868}.why-note strong{color:#4d4552}
+@media(max-width:850px){.intro{grid-template-columns:1fr;padding:4px 0 18px}.intro-facts ul{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.intro h1{font-size:30px}.intro-facts ul{grid-template-columns:1fr}.why-compare{padding:10px}}

@@ -49,7 +49,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.lang = language === 'zh-TW' ? 'zh-Hant' : 'en';
-    document.title = language === 'zh-TW' ? 'Qute · 把今天畫下來' : 'Qute · Make today a work of art';
+    document.title = language === 'zh-TW' ? 'Qute · 在你的裝置上為照片換畫風' : 'Qute · Restyle photos on your device';
     localStorage.setItem('qute-language', language);
   }, [language]);
   useEffect(() => {
@@ -224,12 +224,14 @@ function App() {
     <main>
       <section className="intro">
         <div className="intro-copy">
-          <p className="eyebrow">YOUR MOMENT, REIMAGINED</p>
-          <h1>{t('hero1')}<br /><em>{t('hero2')}</em></h1>
+          <p className="eyebrow">{t('eyebrow')}</p>
+          <h1>{t('hero1')} <em>{t('hero2')}</em></h1>
           <p className="lead">{t('lead')}</p>
-          <div className="intro-pills"><span>✦ {t('noLogin')}</span><span>✦ {t('neural')}</span><span>✦ {t('local')}</span></div>
         </div>
-        <div className="hero-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-card art-card-back"><span>✳</span></div><div className="art-card art-card-front"><div className="sun" /><div className="hill hill-a" /><div className="hill hill-b" /><div className="art-sparkle">✦</div></div><span className="art-label">a little more magical ✨</span></div>
+        <div className="intro-facts">
+          <ul>{['factPrivate', 'factFree', 'factFaithful', 'factOpen'].map((key) => <li key={key}><span aria-hidden="true">✦</span>{t(key)}</li>)}</ul>
+          <a className="why-link" href="#why">{t('whyLink')} ↓</a>
+        </div>
       </section>
       <section className="studio" aria-labelledby="studio-title">
         <div className="section-heading"><span className="step-badge">01</span><div><p className="eyebrow">THE STUDIO</p><h2 id="studio-title">{t('studio')}</h2></div></div>
@@ -254,9 +256,20 @@ function App() {
         <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey).replace('{format}', (formatHint || '?').toUpperCase()) : ''}</p>
       </section>
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
-      <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
+      <section className="why" id="why" aria-labelledby="why-title">
+        <div className="why-head"><p className="eyebrow">{t('whyEyebrow')}</p><h2 id="why-title">{t('whyTitle')}</h2><p>{t('whyIntro')}</p></div>
+        <div className="why-cards">{['Private', 'Free', 'Faithful', 'Open', 'Grow'].map((key) => <article key={key}><h3>{t('why' + key + 'Title')}</h3><p>{t('why' + key)}</p></article>)}</div>
+        <div className="why-compare">
+          <table>
+            <caption>{t('cmpCaption')}</caption>
+            <thead><tr><th scope="col"></th><th scope="col">Qute</th><th scope="col">{t('cmpCloud')}</th></tr></thead>
+            <tbody>{['Where', 'Cost', 'Internet', 'Change', 'Control', 'Polish', 'Upgrade'].map((row) => <tr key={row}><th scope="row">{t('cmp' + row)}</th><td>{t('cmp' + row + 'Qute')}</td><td>{t('cmp' + row + 'Cloud')}</td></tr>)}</tbody>
+          </table>
+          <p className="why-note"><strong>{t('whyWhenCloudTitle')}</strong> {t('whyWhenCloud')}</p>
+        </div>
+      </section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.4 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.5 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
