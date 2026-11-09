@@ -124,3 +124,6 @@ details.advanced-panel summary{display:flex;align-items:center;gap:10px}
 .beauty-panel{border-top:1px solid #f0eae6;padding-top:2px}.beauty-panel .panel-subtitle{margin:12px 0 4px}
 .beauty-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
 @media(max-width:560px){.beauty-grid{grid-template-columns:1fr}}
+.brand-wrap{display:flex;align-items:center;gap:10px}
+.version-badge{font-size:11px;font-weight:700;letter-spacing:.02em;color:#8f6cc4;background:#efe8f8;border:1px solid #e2d6f3;border-radius:999px;padding:3px 8px;text-decoration:none;line-height:1.2}
+.version-badge:hover{background:#e6dbf6}

@@ -1,4 +1,4 @@
-# Qute v0.3.10
+# Qute v0.3.11
 
 免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
 
@@ -23,7 +23,7 @@ Large cloud AI image models can redraw a photo beautifully. Qute deliberately do
 - **多種圖片格式**：JPEG、PNG、WebP、GIF、BMP、ICO、SVG、AVIF 由瀏覽器直接讀取；HEIC／HEIF（iPhone 照片）與 TIFF（含 LZW／Deflate、16 位元、多頁取第一頁）在瀏覽器不支援時，於本機自動轉換，不上傳；檔案上限 60 MB，超過 4,000 萬像素會先縮小
 - **效果目標**：貼近原圖（White-box Cartoonization）、更可愛（AnimeGANv3＋大眼圓臉）、Q 版（大頭大眼短身變形＋AnimeGANv3；伺服器可用時改用 InstantID）、強烈風格（AnimeGANv3 Shinkai＋參考圖筆觸）
 - **參考圖（選用）**：19 幅公有領域名畫（達文西、米開朗基羅、透納、葛飾北齋、歌川廣重、雷諾瓦、卡耶博特、秀拉、梵谷、孟克、塞尚、高更、雷頓、馬諦斯、莫內、克林姆、畢卡比亞、康丁斯基）或自選圖，以縮圖格狀排列；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
-- **臉部與比例變形**：頭部放大、眼睛放大、**頭髮蓬鬆**（頭頂與兩側太陽穴向外擴，不影響眼睛）、**臉頰豐潤**（適合臉型偏瘦、下巴偏小者）、下巴內收、身體縮短；團體照中每人的變形範圍互不重疊
+- **臉部與比例變形**：頭部放大、眼睛放大、**頭髮蓬鬆**（頭髮輪廓平順外擴，只作用於眉毛以上，紋理拉伸上限約 2 倍以保持自然）、**臉頰豐潤**（臉頰線條水平外擴，眼睛、鼻子、嘴巴不動；適合臉型偏瘦、下巴偏小者）、下巴內收、身體縮短；團體照中每人的變形範圍互不重疊
 - **美肌**：磨皮（導向濾波，只作用於偵測到的臉部皮膚）、膚色亮白、唇色紅潤（避開牙齒）、豐唇；可單獨使用（「美肌」目標，不換畫風）或與任何效果合用
 - **團體照**：放大頭部時，每個人的放大範圍不會蓋到旁邊的人，靠近畫面邊緣的頭也會留在畫面內；臉部偵測門檻放寬以找到較小或側面的臉
 - **自訂**目標：全部步驟預設關閉，由「進階設定」逐項開啟；轉換按鈕上方即時顯示「本次轉換會依序執行」的步驟摘要（例如：臉部變形 → White-box → 參考圖色彩 50% → 柔亮色調 40%）
@@ -68,6 +68,8 @@ python -m pytest -q tests
 - **串接自己的模型或伺服器**：介面規格、自訂引擎（名稱、說明與參數會自動出現在 Qute）、範例與檢查程式見 [docs/SERVER_API.md](docs/SERVER_API.md)。
 
 分享用 QR 碼（掃描即開啟 https://sywan.github.io/Qute/）：[public/brand/qute-qr-code.png](public/brand/qute-qr-code.png)，網站頁尾也有連結。
+
+版本號：網頁標題旁與頁尾顯示的版本號來自 `package.json` 的 `version`（建置時由 `vite.config.js` 注入），每次更新時遞增；點選版本號可查看 GitHub 更新紀錄。
 
 Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，GitHub Actions 會自動建置並將 `dist/` 發布到 GitHub Pages。網站：[https://sywan.github.io/Qute/](https://sywan.github.io/Qute/)。
 

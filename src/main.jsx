@@ -11,6 +11,7 @@ import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame }
 import './styles.css';
 
 const base = import.meta.env.BASE_URL;
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'; // from package.json (vite.config.js)
 const styles = [
   { id: 'none', label: 'noReference', description: 'noReferenceDesc', image: null },
   ...artworks.map((art) => ({ ...art, image: artworkImage(base, art.id), thumb: artworkThumb(base, art.id) })),
@@ -215,7 +216,7 @@ function App() {
   const busy = phase !== 'idle';
   return <>
     <header className="topbar">
-      <a className="brand" href="./"><span className="brand-mark">Q</span><span>qute<span className="brand-dot">.</span></span></a>
+      <div className="brand-wrap"><a className="brand" href="./"><span className="brand-mark">Q</span><span>qute<span className="brand-dot">.</span></span></a><a className="version-badge" href="https://github.com/sywan/Qute/commits/main" target="_blank" rel="noreferrer" title={t('versionTitle')}>v{APP_VERSION}</a></div>
       <div className="header-right">
         <span className="top-note"><span className="privacy-dot" />{t('privacy')}</span>
         <div className="language-switch" role="group" aria-label="Language">
@@ -272,7 +273,7 @@ function App() {
         </div>
       </section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.10 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v{APP_VERSION} · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);

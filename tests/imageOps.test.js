@@ -117,14 +117,35 @@ test('beauty: smoothing only touches skin, lips turn redder, nothing without fac
   assert.equal(applyBeauty(img, [], { smooth: 1 }), img);
 });
 
-test('fuller hair and cheeks add bulges that avoid the eyes and shrink in groups', () => {
-  const mk = (x) => ({ x, y: 150, w: 60, h: 70, landmarks: [[x - 12, 140], [x + 12, 140], [x, 152], [x - 10, 165], [x + 10, 165]] });
-  const solo = planChibiWarp([mk(150)], { hair: 1, cheeks: 1 }, 300, 300).featureBulges;
-  assert.equal(solo.length, 5, 'crown + two temples + two cheeks');
-  const crown = solo[0];
-  assert.ok(crown.y + crown.r < 140, 'crown circle stays above the eyes');
-  assert.ok(solo.every((b) => b.amount > 0), 'all enlarge');
-  const group = planChibiWarp([mk(100), mk(160)], { hair: 1, cheeks: 1 }, 300, 300).featureBulges;
-  assert.ok(group.every((b) => b.r <= 0.5 * 60 + 1e-9), 'radii limited by the neighbour 60 px away');
-  assert.equal(planChibiWarp([mk(150)], { hair: 0, cheeks: 0 }, 300, 300).featureBulges.length, 0);
+test('fuller hair and cheeks: outline moves out, face interior fixed, mapping stays monotonic', () => {
+  const face = { x: 150, y: 150, w: 60, h: 70, landmarks: [[138, 140], [162, 140], [150, 152], [140, 165], [160, 165]] };
+  const plan = planChibiWarp([face], { hair: 1, cheeks: 1 }, 300, 300);
+  assert.equal(plan.fields.length, 2);
+  assert.equal(plan.featureBulges.length, 0, 'no bulges: eyes and mouth keep their shape');
+  // eyes, nose and mouth sample themselves
+  for (const [x, y] of face.landmarks) { const [sx, sy] = mapPoint(plan, x, y); assert.ok(Math.abs(sx - x) < 1e-9 && Math.abs(sy - y) < 1e-9, `${x},${y}`); }
+  // the hair outline above the head moves outward by a clearly visible amount
+  const top = face.y - 0.12 * face.h - 0.8 * face.h; // hair outline straight above
+  const [, srcTop] = mapPoint(plan, face.x, top - 12);
+  assert.ok(srcTop > top - 12 + 6, 'output above the old outline still shows hair');
+  // monotonic along rays (no folding = natural look), for hair and cheeks
+  for (const angle of [-Math.PI / 2, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI]) {
+    let prev = -1;
+    for (let r = 0; r < 140; r += 0.5) {
+      const [sx, sy] = mapPoint(plan, face.x + r * Math.cos(angle), face.y - 0.12 * face.h + r * Math.sin(angle));
+      const d = Math.hypot(sx - face.x, sy - (face.y - 0.12 * face.h));
+      assert.ok(d >= prev - 1e-6, 'fold at angle ' + angle + ' r ' + r); prev = d;
+    }
+  }
+  // natural texture: along the vertical ray the local stretch never exceeds ~2.3x
+  let minSlope = Infinity;
+  for (let r = 1; r < 140; r += 0.25) {
+    const a = mapPoint(plan, face.x, face.y - 0.12 * face.h - r)[1], b2 = mapPoint(plan, face.x, face.y - 0.12 * face.h - r - 0.25)[1];
+    minSlope = Math.min(minSlope, (a - b2) / 0.25);
+  }
+  assert.ok(minSlope > 0.43, 'max stretch ' + (1 / minSlope).toFixed(2) + 'x');
+  // groups: a close neighbour reduces the reach and strength
+  const near = planChibiWarp([face, { ...face, x: 210, landmarks: face.landmarks.map(([x, y]) => [x + 60, y]) }], { hair: 1 }, 400, 300).fields[0];
+  assert.ok(near.outer * near.rx <= 30 + 1e-9 || near.outer === 1.3, 'stops halfway to the neighbour');
+  assert.ok(near.amount < plan.fields[0].amount);
 });

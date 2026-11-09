@@ -44,7 +44,7 @@ export function planChibiWarp(faces, params, width, height) {
   const lips = clamp(params.lips ?? 0, 0, 1); // beauty: fuller lips
   const hair = clamp(params.hair ?? 0, 0, 1);
   const cheeks = clamp(params.cheeks ?? 0, 0, 1);
-  const headBulges = [], featureBulges = [];
+  const headBulges = [], featureBulges = [], fields = [];
   let squashFrom = null;
   const centers = faces.map((f) => [f.x, f.y - f.h * 0.12]);
   faces.forEach((f, i) => {
@@ -74,20 +74,25 @@ export function planChibiWarp(faces, params, width, height) {
     // Distance to the nearest other face, so group members' changes never collide.
     let nearest = Infinity;
     for (let j = 0; j < centers.length; j++) if (j !== i) nearest = Math.min(nearest, Math.hypot(centers[j][0] - centers[i][0], centers[j][1] - centers[i][1]));
+    // Hair and cheeks use smooth outline-expansion fields (not bulges): the hair outline or the
+    // cheek line moves outward while the face's interior (eyes, nose, mouth) is left untouched.
+    const reach = Number.isFinite(nearest) ? nearest : Infinity;
     if (hair > 0) {
-      // Crown above the hairline plus both temples; circles stay above the eyes.
-      const top = { x: f.x, y: f.y - f.h * 0.72, r: Math.min(f.h * 0.5, 0.5 * nearest), amount: 0.3 * hair };
-      if (top.y - top.r * 0.3 > 0) featureBulges.push(top);
-      for (const side of [-1, 1]) {
-        const sx = f.x + side * f.w * 0.66;
-        const r = Math.min(f.w * 0.36, 0.35 * nearest);
-        if (sx > 0 && sx < width) featureBulges.push({ x: sx, y: f.y - f.h * 0.32, r, amount: 0.22 * hair });
-      }
+      const rx = f.w * 0.72, ry = f.h * 0.82;
+      const eyeY = (re[1] + le[1]) / 2;
+      // Outer falloff stops halfway to the nearest neighbour; amplitude shrinks if that is tight.
+      const outer = clamp((0.5 * reach) / rx, 1.3, 2.2);
+      const room = clamp((outer - 1.3) / (2.2 - 1.3), 0.35, 1);
+      // Only above the eyebrows, so the sides of the face are never stretched.
+      fields.push({ type: 'hair', cx: f.x, cy: f.y - f.h * 0.12, rx, ry, inner: 0.5, peak: 1.15, outer,
+        amount: 0.24 * hair * room, fadeTop: eyeY - f.h * 0.3, fadeBottom: eyeY - f.h * 0.08 });
     }
     if (cheeks > 0) {
-      for (const side of [-1, 1]) {
-        featureBulges.push({ x: f.x + side * f.w * 0.34, y: f.y + f.h * 0.2, r: Math.min(f.w * 0.34, 0.3 * nearest), amount: 0.32 * cheeks });
-      }
+      const half = f.w * 0.5;
+      const outer = clamp((0.5 * reach) / half, 1.35, 1.9);
+      const room = clamp((outer - 1.35) / (1.9 - 1.35), 0.35, 1);
+      fields.push({ type: 'cheeks', cx: f.x, half, inner: 0.42, peak: 0.98, outer, amount: 0.21 * cheeks * room,
+        yTop: f.y - f.h * 0.1, yPeak: f.y + f.h * 0.22, yBottom: f.y + f.h * 0.62 });
     }
     if (chin > 0) {
       const mouthX = (rm[0] + lm[0]) / 2, mouthY = (rm[1] + lm[1]) / 2;
@@ -102,15 +107,47 @@ export function planChibiWarp(faces, params, width, height) {
     k = 1 + 0.9 * body;
     outHeight = Math.max(1, Math.round(squashFrom + (height - squashFrom) / k));
   } else squashFrom = null;
-  return { width, height: outHeight, headBulges, featureBulges, squashFrom, k };
+  return { width, height: outHeight, headBulges, featureBulges, fields, squashFrom, k };
 }
 
 export function mapPoint(plan, x, y) {
   if (plan.squashFrom !== null && y > plan.squashFrom) y = plan.squashFrom + (y - plan.squashFrom) * plan.k;
   let p = [x, y];
   for (const b of plan.headBulges) p = bulgeInverse(p[0], p[1], b);
+  for (const fld of plan.fields || []) p = fieldInverse(p[0], p[1], fld);
   for (const b of plan.featureBulges) p = bulgeInverse(p[0], p[1], b);
   return p;
+}
+
+// Weight that rises smoothly from 0 at `inner` to 1 at `peak`, then falls back to 0 at `outer`.
+function band(rho, inner, peak, outer) {
+  if (rho <= inner || rho >= outer) return 0;
+  return rho < peak ? smoothstep((rho - inner) / (peak - inner)) : 1 - smoothstep((rho - peak) / (outer - peak));
+}
+const smoothstep = (t) => t * t * (3 - 2 * t);
+
+// Outline expansion as an inverse map. Each output point samples the source a smooth distance
+// D closer to the centre (D in units of the face ellipse), which moves the outline outward and
+// gently thickens the band inside it. D's slope is kept below ~0.55, so texture is never
+// stretched more than about 2x (no smearing); points well inside (`< inner`, the face) and far
+// outside (`> outer`, beyond half the distance to a neighbour) do not move.
+export function fieldInverse(px, py, f) {
+  if (f.type === 'hair') {
+    const dx = (px - f.cx) / f.rx, dy = (py - f.cy) / f.ry;
+    const rho = Math.hypot(dx, dy);
+    if (rho <= f.inner || rho >= f.outer || py >= f.fadeBottom) return [px, py];
+    const up = py <= f.fadeTop ? 1 : 1 - smoothstep((py - f.fadeTop) / (f.fadeBottom - f.fadeTop));
+    const s = (rho - f.amount * band(rho, f.inner, f.peak, f.outer) * up) / rho;
+    return [f.cx + (px - f.cx) * s, f.cy + (py - f.cy) * s];
+  }
+  if (f.type === 'cheeks') {
+    const u = Math.abs(px - f.cx) / f.half;
+    if (u <= f.inner || u >= f.outer || py <= f.yTop || py >= f.yBottom) return [px, py];
+    const v = py < f.yPeak ? smoothstep((py - f.yTop) / (f.yPeak - f.yTop)) : 1 - smoothstep((py - f.yPeak) / (f.yBottom - f.yPeak));
+    const s = (u - f.amount * band(u, f.inner, f.peak, f.outer) * v) / u;
+    return [f.cx + (px - f.cx) * s, py];
+  }
+  return [px, py];
 }
 
 export function applyWarp(src, plan) {
