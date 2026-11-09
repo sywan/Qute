@@ -1,4 +1,4 @@
-# Qute v0.3.6
+# Qute v0.3.7
 
 免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
 
@@ -22,7 +22,7 @@ Large cloud AI image models can redraw a photo beautifully. Qute deliberately do
 - **隨視窗寬度調整的版面**：寬螢幕（≥1500px）三欄：照片＋轉換按鈕｜效果目標＋參考圖｜進階設定；中等寬度兩欄，進階設定橫跨底部並分兩欄排列；手機單欄。滑桿說明改為滑過或點選時顯示
 - **多種圖片格式**：JPEG、PNG、WebP、GIF、BMP、ICO、SVG、AVIF 由瀏覽器直接讀取；HEIC／HEIF（iPhone 照片）與 TIFF（含 LZW／Deflate、16 位元、多頁取第一頁）在瀏覽器不支援時，於本機自動轉換，不上傳；檔案上限 60 MB，超過 4,000 萬像素會先縮小
 - **效果目標**：貼近原圖（White-box Cartoonization）、更可愛（AnimeGANv3＋大眼圓臉）、Q 版（大頭大眼短身變形＋AnimeGANv3；伺服器可用時改用 InstantID）、強烈風格（AnimeGANv3 Shinkai＋參考圖筆觸）
-- **參考圖（選用）**：三幅公有領域畫作或自選圖；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
+- **參考圖（選用）**：16 幅公有領域名畫（達文西、米開朗基羅、透納、葛飾北齋、歌川廣重、雷諾瓦、卡耶博特、秀拉、梵谷、孟克、塞尚、高更、馬諦斯、莫內、畢卡比亞）或自選圖，以縮圖格狀排列；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
 - **自訂**目標：全部步驟預設關閉，由「進階設定」逐項開啟；轉換按鈕上方即時顯示「本次轉換會依序執行」的步驟摘要（例如：臉部變形 → White-box → 參考圖色彩 50% → 柔亮色調 40%）
 - 切換參考圖開／關只調整參考圖色彩與筆觸，其他進階設定保留；連線伺服器時只在演算法未被手動更改時才改用 InstantID
 - **進階設定**：直接選演算法、頭／眼／下巴／身體變形、柔亮色調、細節保留、處理尺寸；自架伺服器網址
@@ -74,10 +74,27 @@ Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，
 - [ONNX Runtime Web](https://onnxruntime.ai/)，MIT。
 - [UTIF.js](https://github.com/photopea/UTIF.js)（TIFF 解碼），MIT；[libheif-js](https://github.com/catdad-experiments/libheif-js)（HEIC／HEIF 解碼，libheif），LGPL-3.0，僅在開啟 HEIC 檔時才載入。
 - 瀏覽器模型來源與授權：[public/models/README.md](public/models/README.md)。
-- 梵谷《臥室》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Van_Gogh_-_The_Bedroom,_1889_Chicago.jpg)
-- 莫奈《睡蓮》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Water_Lilies_-_1906,_Ryerson.jpg)
-- 達文西《蒙娜麗莎》：[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Leonardo_da_Vinci_-_Mona_Lisa.jpg)
+- 參考畫作（public/styles/，最長邊 800 px；縮圖 public/styles/thumbs/）：皆為公有領域作品（作者逝世逾 70 年、1929 年前發表）；平面藝術品的忠實翻拍不另產生著作權。
 
-三幅畫作的縮圖已儲存在倉庫內，來源頁面標示為公有領域。照片內容不寫入倉庫、Qute 伺服器或 Magenta 模型儲存空間。
+| 作品 | 作者／年代 | 圖檔來源 |
+| --- | --- | --- |
+| 蒙娜麗莎 Mona Lisa | 達文西，c. 1503–1519 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Leonardo_da_Vinci_-_Mona_Lisa.jpg) |
+| 創造亞當 The Creation of Adam | 米開朗基羅，c. 1512 | GitHub taulant0/Paintings-and-Quotes-by-Michelangelo-Buonarroti |
+| 米諾陶號船難 The Shipwreck of the Minotaur | 透納，c. 1810 | GitHub lengstrom/fast-style-transfer |
+| 神奈川沖浪裏 The Great Wave off Kanagawa | 葛飾北齋，c. 1831 | GitHub joseamijares/frame-dashboard |
+| 蒲原夜之雪 Evening Snow at Kanbara | 歌川廣重，1833–1834 | GitHub joseamijares/frame-dashboard |
+| 煎餅磨坊的舞會 Dance at Le Moulin de la Galette | 雷諾瓦，1876 | GitHub Aces12345/becoming-plates |
+| 巴黎街道，雨天 Paris Street; Rainy Day | 卡耶博特，1877 | GitHub joseamijares/frame-dashboard |
+| 大碗島的星期天下午 A Sunday on La Grande Jatte | 秀拉，1884–1886 | GitHub joseamijares/frame-dashboard |
+| 臥室 The Bedroom | 梵谷，1889 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Van_Gogh_-_The_Bedroom,_1889_Chicago.jpg) |
+| 星夜 The Starry Night | 梵谷，1889 | GitHub jcjohnson/neural-style |
+| 吶喊 The Scream | 孟克，1893 | GitHub jcjohnson/neural-style |
+| 蘋果籃 The Basket of Apples | 塞尚，c. 1893 | GitHub joseamijares/frame-dashboard |
+| 神之日 Mahana no Atua | 高更，1894 | GitHub joseamijares/frame-dashboard |
+| 戴帽子的女人 Woman with a Hat | 馬諦斯，1905 | GitHub jcjohnson/neural-style |
+| 睡蓮 Water Lilies | 莫內，1906 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Water_Lilies_-_1906,_Ryerson.jpg) |
+| Udnie | 畢卡比亞，1913 | GitHub pytorch/examples |
+
+照片內容不寫入倉庫、Qute 伺服器或 Magenta 模型儲存空間。
 
 產品範圍與限制見 [v0.2 規格](docs/PRODUCT_SPEC_v0.2.md)、[v0.2.1 功能增補](docs/PRODUCT_SPEC_v0.2.1.md)、[v0.2.2 改進與 Q 版方案](docs/PRODUCT_SPEC_v0.2.2.md)及 [v0.3 多演算法框架](docs/PRODUCT_SPEC_v0.3.md)。

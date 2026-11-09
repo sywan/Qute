@@ -111,3 +111,13 @@ details.advanced-panel summary{display:flex;align-items:center;gap:10px}
 .footer-qr{color:#8f6cc4;text-decoration:none;font-weight:700}.footer-qr:hover{text-decoration:underline}
 .api-guide{display:inline-block;margin:6px 0 2px;font-size:12px;font-weight:700;color:#8f6cc4;text-decoration:none}.api-guide:hover{text-decoration:underline}
 .check-field{display:flex;align-items:center;gap:8px}.check-field input{width:auto}
+/* reference artwork grid (v0.3.7) */
+.art-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px}
+.art-tile{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:3px;border:1px solid #eee8e5;background:#fff;border-radius:11px;text-align:left;min-width:0;transition:border-color .15s,box-shadow .15s}
+.art-tile:hover{border-color:#cbb9e8}
+.art-tile.selected{border-color:#a58bd1;box-shadow:0 0 0 2px #a58bd1 inset}
+.art-thumb{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;background:#efe8f8}
+.art-icon{display:grid;place-items:center;color:#967cbb;font-size:22px}
+.art-name{font-size:10px;line-height:1.2;color:#5d5361;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em;padding:0 2px}
+.art-tile.selected .art-name{color:#29272a}
+.art-caption{margin:8px 2px 0;font-size:12px;color:#6d6175;line-height:1.5}.art-caption span{color:#a49b9d}

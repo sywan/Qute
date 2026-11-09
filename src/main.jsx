@@ -6,15 +6,14 @@ import { engineById, engineLabel, setServerEngineInfo, settingsForGoal, withRefe
 import { fetchServerEngines, normalizeServerURL } from './engines/server';
 import StylePanel from './StylePanel';
 import { ACCEPT, normalizeImageFile } from './imageDecode';
+import { artworkImage, artworkThumb, artworks } from './artworks';
 import { cameraFilter, cameraPresets, defaultCameraSettings, renderCameraFrame } from './cameraEffects';
 import './styles.css';
 
 const base = import.meta.env.BASE_URL;
 const styles = [
   { id: 'none', label: 'noReference', description: 'noReferenceDesc', image: null },
-  { id: 'van-gogh', label: 'vanGogh', description: 'vanGoghDesc', image: base + 'styles/van-gogh.jpg' },
-  { id: 'monet', label: 'monet', description: 'monetDesc', image: base + 'styles/monet.jpg' },
-  { id: 'da-vinci', label: 'daVinci', description: 'daVinciDesc', image: base + 'styles/da-vinci.jpg' },
+  ...artworks.map((art) => ({ ...art, image: artworkImage(base, art.id), thumb: artworkThumb(base, art.id) })),
   { id: 'custom', label: 'custom', description: 'customDesc', image: null }
 ];
 
@@ -273,7 +272,7 @@ function App() {
         </div>
       </section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.6 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.7 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);

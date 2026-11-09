@@ -39,6 +39,7 @@ export default function StylePanel(props) {
   const set = (key) => (value) => updateSettings({ [key]: value });
   const setWarp = (key) => (value) => updateSettings({ warp: { ...settings.warp, [key]: value } });
   const serverAvailable = (id) => serverEngines.includes(id);
+  const selectedArt = styles.find((item) => item.id === styleId && item.title);
   const label = (id) => engineLabel(t, id, language);
   const chooseEngine = (id) => {
     const next = engineById(id);
@@ -110,12 +111,19 @@ export default function StylePanel(props) {
   </section>;
   const referenceSection = <section className="panel reference-panel">
     <h3 className="panel-subtitle">{t('referenceOptional')}</h3>
-    <div className="style-list compact" role="radiogroup" aria-label={t('referenceOptional')}>
-      {styles.map((item) => <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} className={'style-option ' + (styleId === item.id ? 'selected' : '')} disabled={busy} onClick={() => chooseReference(item.id)}>
-        {item.image ? <img className="style-swatch" src={item.image} alt="" /> : <span className="style-swatch swatch-custom">{item.id === 'none' ? '∅' : '✧'}</span>}
-        <span><strong>{t(item.label)}</strong><small>{t(item.description)}</small></span><span className="check">✓</span>
-      </button>)}
+    <div className="art-grid" role="radiogroup" aria-label={t('referenceOptional')}>
+      {styles.map((item) => {
+        const special = !item.title;
+        const name = special ? t(item.label) : localized(item.title, language);
+        const tip = special ? t(item.description) : localized(item.artist, language) + ' · ' + name + ' (' + item.year + ')';
+        return <button type="button" key={item.id} role="radio" aria-checked={styleId === item.id} title={tip} aria-label={tip}
+          className={'art-tile' + (special ? ' art-special' : '') + (styleId === item.id ? ' selected' : '')} disabled={busy} onClick={() => chooseReference(item.id)}>
+          {special ? <span className="art-thumb art-icon" aria-hidden="true">{item.id === 'none' ? '∅' : '＋'}</span> : <img className="art-thumb" src={item.thumb} alt="" loading="lazy" />}
+          <span className="art-name">{name}</span>
+        </button>;
+      })}
     </div>
+    {selectedArt && <p className="art-caption"><strong>{localized(selectedArt.title, language)}</strong> · {localized(selectedArt.artist, language)}, {selectedArt.year} · <span>{localized(selectedArt.movement, language)}</span></p>}
     {styleId === 'custom' && <div className="reference-picker">
       <div className={'reference-dropzone' + (referenceDragging ? ' dragging' : '')} onDragEnter={(event) => { event.preventDefault(); setReferenceDragging(true); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }} onDragLeave={(event) => { event.preventDefault(); if (!event.currentTarget.contains(event.relatedTarget)) setReferenceDragging(false); }} onDrop={(event) => { event.preventDefault(); setReferenceDragging(false); if (!busy) acceptFile(event.dataTransfer.files?.[0], 'reference'); }}>
         {reference && <img className="reference-preview" src={reference.url} alt={t('customSelected')} />}
