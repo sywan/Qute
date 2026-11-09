@@ -214,11 +214,12 @@ function App() {
   };
 
   const busy = phase !== 'idle';
+  const serverMode = engineById(settings.engine)?.kind === 'server';
   return <>
     <header className="topbar">
       <div className="brand-wrap"><a className="brand" href="./"><span className="brand-mark">Q</span><span>qute<span className="brand-dot">.</span></span></a><a className="version-badge" href="https://github.com/sywan/Qute/commits/main" target="_blank" rel="noreferrer" title={t('versionTitle')}>v{APP_VERSION}</a></div>
       <div className="header-right">
-        <span className="top-note"><span className="privacy-dot" />{t('privacy')}</span>
+        <span className="top-note"><span className="privacy-dot" />{t(serverMode ? 'privacyServer' : 'privacy')}</span>
         <div className="language-switch" role="group" aria-label="Language">
           <button type="button" className={language === 'zh-TW' ? 'active' : ''} onClick={() => setLanguage('zh-TW')} aria-pressed={language === 'zh-TW'}>繁中</button>
           <button type="button" className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')} aria-pressed={language === 'en'}>EN</button>
