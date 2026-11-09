@@ -4,6 +4,8 @@ import { initialLanguage, messages } from './i18n';
 import { runPipeline } from './engines/pipeline';
 import { engineById, engineLabel, setServerEngineInfo, settingsForGoal, withReference, withServerEngines } from './engines/registry';
 import { fetchServerEngines, normalizeServerURL } from './engines/server';
+import { classifyError, slowAfter } from './engines/errors';
+import { describePipeline } from './engines/summary';
 import StylePanel from './StylePanel';
 import { ACCEPT, normalizeImageFile } from './imageDecode';
 import { artworkImage, artworkThumb, artworks } from './artworks';
@@ -33,6 +35,11 @@ function App() {
   const [resultMeta, setResultMeta] = useState(null);
   const [phase, setPhase] = useState('idle');
   const [statusKey, setStatusKey] = useState('');
+  const [progress, setProgress] = useState(null); // { key, index, total, steps, startedAt, stepAt }
+  const [runError, setRunError] = useState(null); // { key, hint, detail, step }
+  const [lastRunMs, setLastRunMs] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const runRef = useRef({ id: 0, controller: null });
   const [formatHint, setFormatHint] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraRequesting, setCameraRequesting] = useState(false);
@@ -180,21 +187,70 @@ function App() {
     const selected = styles.find((item) => item.id === styleId);
     const referenceURL = styleId === 'custom' ? reference?.url : selected?.image || null;
     if (styleId === 'custom' && !referenceURL) return setStatusKey('missingStyle');
+    const controller = new AbortController();
+    const run = { id: runRef.current.id + 1, controller };
+    runRef.current = run;
+    const startedAt = Date.now();
+    const engineKind = engineById(settings.engine)?.kind || 'browser';
+    let step = '';
+    setRunError(null);
     setPhase('generating');
-    setStatusKey('working');
+    setStatusKey('');
+    setNow(startedAt);
+    setProgress({ key: 'loadingPhoto', index: 0, total: 1, steps: ['loadingPhoto'], startedAt, stepAt: startedAt, engineKind });
     try {
-      const output = await runPipeline({ photoURL: photo.url, referenceURL, settings, serverURL: normalizeServerURL(serverURL), onStep: setStatusKey });
+      const output = await runPipeline({
+        photoURL: photo.url, referenceURL, settings, serverURL: normalizeServerURL(serverURL), signal: controller.signal,
+        onStep: (key, info = {}) => {
+          if (runRef.current !== run) return;
+          step = key;
+          setProgress((current) => ({ ...current, key, index: info.index ?? current?.index ?? 0, total: info.total ?? current?.total ?? 1, steps: info.steps || current?.steps || [key], stepAt: Date.now() }));
+        }
+      });
+      if (runRef.current !== run) return;
       const url = URL.createObjectURL(output.blob);
       replaceURL(resultRef, url);
       setResult({ url, blob: output.blob });
       setResultMeta({ engine: output.engine, faces: output.faces, width: output.width, height: output.height, limited: output.limitedBySource });
+      setLastRunMs(Date.now() - startedAt);
       const engine = engineById(output.engine);
-      setStatusKey(engine.kind === 'server' ? 'doneServer' : Object.values(settings.warp).some((v) => v > 0) && !output.faces ? 'doneNoFaces' : 'done');
+      const nothing = describePipeline(settings, { hasReference: !!referenceURL, serverEngines }).some((s) => s.key === 'sum_nothing');
+      setStatusKey(nothing ? 'doneNothing' : engine.kind === 'server' ? 'doneServer' : Object.values(settings.warp).some((v) => v > 0) && !output.faces ? 'doneNoFaces' : 'done');
     } catch (error) {
+      if (runRef.current !== run) return;
       console.error('Qute style transfer failed', error);
-      setStatusKey(error.code || (engineById(settings.engine)?.kind === 'server' ? 'serverFailed' : 'failed'));
-    } finally { setPhase('idle'); }
+      const info = classifyError(error, { engineKind, step });
+      if (info.key === 'cancelled') setStatusKey('cancelled');
+      else setRunError({ ...info, step });
+    } finally {
+      if (runRef.current === run) { setPhase('idle'); setProgress(null); runRef.current = { ...run, controller: null }; }
+    }
   };
+  const cancelRun = () => {
+    const run = runRef.current;
+    run.controller?.abort();
+    // Work already running inside the AI model cannot be interrupted; its result is ignored.
+    runRef.current = { id: run.id + 1, controller: null };
+    setPhase('idle'); setProgress(null); setStatusKey('cancelled');
+  };
+  // Elapsed-time ticker, plus errors that escape the pipeline (e.g. a WebAssembly crash).
+  useEffect(() => {
+    if (phase !== 'generating') return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    const onFailure = (event) => {
+      const error = event.reason || new Error('Unknown error');
+      // Only crashes of the AI runtime end the run; unrelated page errors are ignored.
+      if (!/wasm|webassembly|onnx|\bort\b|memory|abort\(/i.test(String(error?.message || error))) return;
+      const run = runRef.current;
+      run.controller?.abort();
+      runRef.current = { id: run.id + 1, controller: null };
+      console.error('Qute: uncaught error during transformation', error);
+      setRunError({ ...classifyError(error, { engineKind: engineById(settings.engine)?.kind }), step: '' });
+      setPhase('idle'); setProgress(null);
+    };
+    window.addEventListener('unhandledrejection', onFailure);
+    return () => { clearInterval(timer); window.removeEventListener('unhandledrejection', onFailure); };
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
   const download = () => {
     if (!result) return setStatusKey('noResult');
     const anchor = document.createElement('a');
@@ -214,12 +270,34 @@ function App() {
   };
 
   const busy = phase !== 'idle';
-  const serverMode = engineById(settings.engine)?.kind === 'server';
+  const secs = (ms) => (ms / 1000).toFixed(ms < 10000 ? 1 : 0);
+  const statusText = statusKey ? t(statusKey).replace('{format}', (formatHint || '?').toUpperCase()) : '';
+  const isDone = statusKey.startsWith('done');
+  const progressView = <div className="run-box">
+    {progress ? <div className="run-progress" role="status" aria-live="polite">
+      <div className="run-head"><strong>{t('progressTitle')}</strong><span>{t('stepOf').replace('{i}', Math.min(progress.index + 1, progress.total)).replace('{n}', progress.total)} · {t('elapsedSec').replace('{s}', secs(now - progress.startedAt))}</span></div>
+      <div className="run-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(100 * progress.index / progress.total)}>
+        <div className="run-bar-done" style={{ width: (100 * progress.index / progress.total) + '%' }} />
+        <div className="run-bar-current" style={{ left: (100 * progress.index / progress.total) + '%', width: (100 / progress.total) + '%' }} />
+      </div>
+      <ol className="run-steps">{progress.steps.map((key, i) => <li key={key} className={i < progress.index ? 'done' : i === progress.index ? 'current' : ''}><span aria-hidden="true">{i < progress.index ? '✓' : i === progress.index ? '●' : '○'}</span>{t(key).replace(/…$/, '')}</li>)}</ol>
+      {now - progress.stepAt > slowAfter(progress.key, progress.engineKind) && <p className="run-slow">⏳ {t('slowStep')} {t(progress.key === 'stylizing' ? 'slowStylizing' : progress.key === 'serverWorking' ? 'slowServer' : 'slowGeneric')}</p>}
+      <button type="button" className="button button-light run-cancel" onClick={cancelRun}>{t('cancelRun')} ■</button>
+    </div>
+      : runError ? <div className="run-error" role="alert">
+        <strong>⚠ {t('runFailedTitle')}</strong>
+        <p>{t(runError.key)}{runError.step ? ' ' + t('failedAtStep').replace('{step}', t(runError.step).replace(/…$/, '')) : ''}</p>
+        {runError.hint && <p className="run-hint">{t(runError.hint)}</p>}
+        {runError.detail && <details><summary>{t('technicalDetails')}</summary><code>{runError.detail} · v{APP_VERSION} · {settings.engine} · {settings.maxSide}px → {settings.outputSize || settings.maxSide}px</code></details>}
+        <button type="button" className="button button-light" onClick={generate} disabled={!photo}>{t('tryAgain')} ↻</button>
+      </div>
+      : <p className={'status' + (isDone ? (statusKey === 'done' || statusKey === 'doneServer' ? ' status-ok' : ' status-warn') : statusKey === 'cancelled' ? '' : statusKey ? ' status-note' : '')} role="status" aria-live="polite">{statusText}{isDone && lastRunMs ? ' ' + t('doneIn').replace('{s}', secs(lastRunMs)) : ''}{!statusKey && !photo ? t('missingPhoto') : ''}</p>}
+  </div>;
   return <>
     <header className="topbar">
       <div className="brand-wrap"><a className="brand" href="./"><span className="brand-mark">Q</span><span>qute<span className="brand-dot">.</span></span></a><a className="version-badge" href="https://github.com/sywan/Qute/commits/main" target="_blank" rel="noreferrer" title={t('versionTitle')}>v{APP_VERSION}</a></div>
       <div className="header-right">
-        <span className="top-note"><span className="privacy-dot" />{t(serverMode ? 'privacyServer' : 'privacy')}</span>
+        <span className="top-note"><span className="privacy-dot" />{t('privacy')}</span>
         <div className="language-switch" role="group" aria-label="Language">
           <button type="button" className={language === 'zh-TW' ? 'active' : ''} onClick={() => setLanguage('zh-TW')} aria-pressed={language === 'zh-TW'}>繁中</button>
           <button type="button" className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')} aria-pressed={language === 'en'}>EN</button>
@@ -240,7 +318,7 @@ function App() {
       </section>
       <section className="studio" aria-labelledby="studio-title">
         <div className="section-heading"><span className="step-badge">01</span><div><p className="eyebrow">THE STUDIO</p><h2 id="studio-title">{t('studio')}</h2></div></div>
-          <StylePanel {...{ t, language, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} workspace={
+          <StylePanel {...{ t, language, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result, progressView }} workspace={
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
             {cameraOpen ? <div className="camera-state">
@@ -252,13 +330,12 @@ function App() {
               </div>
               <div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div>
             </div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {engineLabel(t, resultMeta.engine, language)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}{resultMeta.width ? ' · ' + resultMeta.width + '×' + resultMeta.height : ''}{resultMeta.limited ? ' (' + t('resLimited') + ')' : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {engineLabel(t, resultMeta.engine, language)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}{resultMeta.width ? ' · ' + resultMeta.width + '×' + resultMeta.height : ''}{resultMeta.limited ? ' (' + t('resLimited') + ')' : ''}</span>}</figcaption>{progress ? <div className="result-placeholder result-working"><span className="spinner" aria-hidden="true" />{t(progress.key)}</div> : result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
           } />
           <input ref={referenceInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
-        <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey).replace('{format}', (formatHint || '?').toUpperCase()) : ''}</p>
       </section>
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="why" id="why" aria-labelledby="why-title">

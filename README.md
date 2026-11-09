@@ -1,18 +1,18 @@
 # Qute v0.3.14
 
-免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。預設在訪客瀏覽器內處理照片，不使用 Qute 託管的圖片伺服器或雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；也可自行連線 Python 推論伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。**選用伺服器演算法時，照片會傳到訪客設定的伺服器。**
+免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
 
 ## 定位：為什麼用 Qute？／Why Qute?
 
-雲端大型 AI 影像模型（聊天助理與設計工具內建的影像生成）能把照片重新畫得很漂亮。Qute 預設用使用者裝置上的小型開源模型，為照片套用選定的畫風；可選自架伺服器使用更強的模型。瀏覽器模式具備以下特性：
+雲端大型 AI 影像模型（聊天助理與設計工具內建的影像生成）能把照片重新畫得很漂亮。Qute 刻意只做較單純的事：用在使用者自己裝置上執行的小型開源模型，為照片套用選定的畫風。成品通常不如雲端大模型精緻，但具備雲端服務做不到的特性：
 
-- **隱私**：瀏覽器模式在本機處理照片，不上傳
-- **免費、免登入、不耗 AI 額度**：瀏覽器模型與執行環境首次下載後，轉換不必上傳照片
-- **忠於原照、可控制**：瀏覽器模式通常保留主要構圖；每一步可調整
+- **隱私**：照片在瀏覽器內處理，不上傳
+- **免費、免登入、不耗 AI 額度**：模型與執行環境首次下載（約 20–30 MB）後，轉換不再需要網路傳輸
+- **忠於原照、可控制**：轉換原照而非重新創作；每一步可調整，相同設定得到相同結果
 - **公開透明**：演算法皆有論文與原始碼出處，適合教學與方法比較
-- **可升級**：需要更強效果時，自架 Qute 伺服器（DCT-Net、VToonify、InstantID、WarpGAN）；照片傳到自行選定的主機
+- **可升級**：需要更強效果時，自架 Qute 伺服器（DCT-Net、VToonify、InstantID、WarpGAN），仍不經雲端
 
-Large cloud AI image models can redraw a photo beautifully. Qute uses small open-source models on your device by default. Browser mode keeps photos local, needs no account or AI quota, and offers adjustable steps. An optional server you configure can run stronger models; selecting a server engine sends photos to that server. If you want a completely reimagined picture and are comfortable uploading the photo, a cloud image generator will usually look better.
+Large cloud AI image models can redraw a photo beautifully. Qute deliberately does something narrower: it applies a chosen style to your photo with small open-source models running on your own device. Results are often less polished, but photos stay private, there is no account, cost or AI quota, the original composition is kept, every step is visible and repeatable, each algorithm is a published method, and a self-hosted server adds stronger models when needed. When you want a completely re-imagined picture and are comfortable uploading the photo, a cloud image generator will usually look better.
 
 網站上的「為什麼用 Qute？」段落（頁首連結）含完整說明與比較表。
 
@@ -25,13 +25,14 @@ Large cloud AI image models can redraw a photo beautifully. Qute uses small open
 - **參考圖（選用）**：19 幅公有領域名畫（達文西、米開朗基羅、透納、葛飾北齋、歌川廣重、雷諾瓦、卡耶博特、秀拉、梵谷、孟克、塞尚、高更、雷頓、馬諦斯、莫內、克林姆、畢卡比亞、康丁斯基）或自選圖，以縮圖格狀排列；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
 - **臉部與比例變形**：頭部放大、眼睛放大、**頭髮蓬鬆**、**臉頰豐潤**（臉頰線條水平外擴，眼睛、鼻子、嘴巴不動；適合臉型偏瘦、下巴偏小者）、下巴內收、身體縮短；團體照中每人的變形範圍互不重疊
 - **美肌**：磨皮（導向濾波，只作用於偵測到的臉部皮膚）、膚色亮白、唇色紅潤（避開牙齒）、豐唇；可單獨使用（「美肌」目標，不換畫風）或與任何效果合用
+- **轉換進度與錯誤提示**：左欄顯示目前步驟、進度條與經過時間，可隨時停止；失敗時說明原因與建議做法（例如調低處理尺寸、檢查網路或伺服器）
 - **高解析輸出（2K / 4K / 5K）**：模型以「處理尺寸」運算後，用原照的全解析度作導向濾波放大（Fast Guided Filter），邊緣與細節清晰；輸出不超過原照解析度，超過 4.2 MP 時存為高品質 JPEG。
 - **團體照**：放大頭部時，每個人的放大範圍不會蓋到旁邊的人，靠近畫面邊緣的頭也會留在畫面內；臉部偵測門檻放寬以找到較小或側面的臉
 - **自訂**目標：全部步驟預設關閉，由「進階設定」逐項開啟；轉換按鈕上方即時顯示「本次轉換會依序執行」的步驟摘要（例如：臉部變形 → White-box → 參考圖色彩 50% → 柔亮色調 40%）
 - 切換參考圖開／關只調整參考圖色彩與筆觸，其他進階設定保留；連線伺服器時只在演算法未被手動更改時才改用 InstantID
 - **進階設定**：直接選演算法、頭／眼／下巴／身體變形、柔亮色調、細節保留、處理尺寸；自架伺服器網址
 - 瀏覽器內推論：ONNX Runtime Web 執行 AnimeGANv2／v3、White-box、YuNet 臉部偵測；模型與 wasm 由本站提供
-- PNG 下載（大於 4.2 MP 時為高品質 JPEG）、裝置支援時系統分享；繁中／英文切換
+- PNG 下載、裝置支援時系統分享；繁中／英文切換
 
 | 演算法 | 執行位置 | 論文 |
 | --- | --- | --- |
@@ -68,7 +69,7 @@ python -m pytest -q tests
 - 詳見 [server/README.md](server/README.md)；連線後在 Qute「進階設定」輸入 `http://localhost:8765`。
 - **串接自己的模型或伺服器**：介面規格、自訂引擎（名稱、說明與參數會自動出現在 Qute）、範例與檢查程式見 [docs/SERVER_API.md](docs/SERVER_API.md)。
 
-分享用 QR 碼（掃描即開啟 https://sywan.github.io/Qute/）：[public/brand/qute-qr-code.png](public/brand/qute-qr-code.png)，網站頁尾也有連結。這是**網站入口**的 QR 碼；目前不會為每張生成圖片建立可供其他裝置下載的連結。
+分享用 QR 碼（掃描即開啟 https://sywan.github.io/Qute/）：[public/brand/qute-qr-code.png](public/brand/qute-qr-code.png)，網站頁尾也有連結。
 
 版本號：網頁標題旁與頁尾顯示的版本號來自 `package.json` 的 `version`（建置時由 `vite.config.js` 注入），每次更新時遞增；點選版本號可查看 GitHub 更新紀錄。
 
@@ -106,4 +107,4 @@ Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，
 
 照片內容不寫入倉庫、Qute 伺服器或 Magenta 模型儲存空間。
 
-產品範圍與限制見 [v0.3 多演算法框架](docs/PRODUCT_SPEC_v0.3.md)及 [v0.3.14 整合紀錄](docs/CONSOLIDATION_v0.3.14.md)；[v0.2 規格](docs/PRODUCT_SPEC_v0.2.md)、[v0.2.1 功能增補](docs/PRODUCT_SPEC_v0.2.1.md)及 [v0.2.2 改進與 Q 版方案](docs/PRODUCT_SPEC_v0.2.2.md)保留作為版本歷史。
+產品範圍與限制見 [v0.2 規格](docs/PRODUCT_SPEC_v0.2.md)、[v0.2.1 功能增補](docs/PRODUCT_SPEC_v0.2.1.md)、[v0.2.2 改進與 Q 版方案](docs/PRODUCT_SPEC_v0.2.2.md)及 [v0.3 多演算法框架](docs/PRODUCT_SPEC_v0.3.md)。

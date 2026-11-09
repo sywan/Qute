@@ -33,7 +33,7 @@ export default function StylePanel(props) {
   const {
     t, language, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference,
     reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile,
-    serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result, workspace
+    serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result, workspace, progressView
   } = props;
   const engine = engineById(settings.engine);
   const hasReference = styleId !== 'none';
@@ -159,6 +159,7 @@ export default function StylePanel(props) {
       <div className="steps">{steps.map((step, i) => <React.Fragment key={i}>{i > 0 && <span className="arrow" aria-hidden="true">→</span>}<span className={'step' + (step.warn ? ' warn' : '')}>{formatStep(step, t, label)}</span></React.Fragment>)}</div>
     </div>
     <button className="button button-primary generate-button" onClick={generate} disabled={busy || !photo}>{busy ? t('working') : result ? t('regenerate') : t('generate')} <span>✦</span></button>
+    {progressView}
     <div className="style-hint">{engine?.kind === 'server' ? t('serverNotice') : t('aiNotice')}</div>
   </section>;
 

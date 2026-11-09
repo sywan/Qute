@@ -27,26 +27,49 @@ function fitWithin(w, h, max) {
 }
 
 /**
- * @param {object} input  { photoURL, referenceURL?, settings, serverURL?, onStep?(key) }
+ * @param {object} input  { photoURL, referenceURL?, settings, serverURL?, signal?, onStep?(key, { index, total, steps }) }
  * @returns {Promise<{ blob: Blob, faces: number, engine: string }>}
  */
-export async function runPipeline({ photoURL, referenceURL, settings, serverURL, onStep = () => {} }) {
+export async function runPipeline({ photoURL, referenceURL, settings, serverURL, signal, onStep: report = () => {} }) {
   const engine = engineById(settings.engine);
   if (!engine) throw new Error('Unknown engine ' + settings.engine);
   if (engine.needsReference && !referenceURL) throw Object.assign(new Error('Reference required'), { code: 'missingStyle' });
   if (engine.kind === 'server' && !serverURL) throw Object.assign(new Error('Server URL required'), { code: 'serverMissing' });
 
-  const [photoImage, referenceImage] = await Promise.all([loadImage(photoURL), referenceURL ? loadImage(referenceURL) : null]);
+  const checkCancelled = () => { if (signal?.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError', code: 'cancelled' }); };
+  let steps = ['loadingPhoto'];
+  const onStep = async (key) => {
+    checkCancelled();
+    if (!steps.includes(key)) steps = [...steps.slice(0, -1), key, steps[steps.length - 1]];
+    report(key, { index: steps.indexOf(key), total: steps.length, steps });
+    await nextFrame();
+    checkCancelled();
+  };
+  report('loadingPhoto', { index: 0, total: 1, steps });
+  let photoImage, referenceImage;
+  try {
+    [photoImage, referenceImage] = await Promise.all([loadImage(photoURL), referenceURL ? loadImage(referenceURL) : null]);
+  } catch (error) { throw Object.assign(error, { code: 'failedImage' }); }
   const photo = toImageData(photoImage, settings.maxSide || 768);
   const reference = referenceImage ? toImageData(referenceImage, 512) : null;
 
   // 1. Faces are needed for geometric warps and for face protection under reference texture.
   const wantsTexture = referenceImage && settings.texture > 0 && engine.id !== 'magenta';
   const needFaces = hasBeauty(settings.beauty) || (engine.kind === 'browser' && (hasWarp(warpParams(settings)) || ((wantsTexture || engine.id === 'magenta') && settings.faceProtect > 0)));
+  // The steps this run will go through, for the progress bar (skipped steps are dropped later).
+  const outLongPlanned = Math.min(Number(settings.outputSize) || 0, Math.max(photoImage.naturalWidth || photoImage.width, photoImage.naturalHeight || photoImage.height));
+  steps = ['loadingPhoto',
+    needFaces && 'detectingFaces',
+    engine.kind === 'browser' && hasWarp(warpParams(settings)) && 'warping',
+    hasBeauty(settings.beauty) && 'beautifying',
+    engine.kind === 'server' ? 'serverWorking' : (engine.model || engine.id === 'magenta') ? 'stylizing' : null,
+    ((wantsTexture) || (reference && settings.palette > 0)) && 'applyingReference',
+    outLongPlanned > Math.max(photo.width, photo.height) * 1.05 && 'upscaling',
+    'finishing'].filter(Boolean);
+  await onStep('loadingPhoto');
   let faces = [];
   if (needFaces) {
-    onStep('detectingFaces');
-    await nextFrame();
+    await onStep('detectingFaces');
     try { faces = await detectFaces(photo); } catch (error) { console.warn('Face detection unavailable', error); }
     // Fuller hair keeps each person's hairline in place (or slightly forward), so find it first.
     if ((settings.warp?.hair || 0) > 0) faces = faces.map((f) => { const h = estimateHair(photo, f); return { ...f, hairlineY: h.y, hairThin: h.thin }; });
@@ -56,8 +79,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
   let warped = photo;
   let warpedFaces = faces;
   if (engine.kind === 'browser' && faces.length && hasWarp(warpParams(settings))) {
-    onStep('warping');
-    await nextFrame();
+    await onStep('warping');
     const plan = planChibiWarp(faces, warpParams(settings), photo.width, photo.height);
     const out = applyWarp(photo, plan);
     warped = new ImageData(out.data, out.width, out.height);
@@ -66,15 +88,14 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
 
   // 2b. Beauty (美肌): smoother, brighter skin and lip colour on the (warped) photo.
   if (warpedFaces.length && hasBeauty(settings.beauty)) {
-    onStep('beautifying');
-    await nextFrame();
+    await onStep('beautifying');
     warped = toImageData_(applyBeautyROI(warped, warpedFaces, settings.beauty));
   }
 
   // 3. Base engine.
   let base;
   if (engine.kind === 'server') {
-    onStep('serverWorking');
+    await onStep('serverWorking');
     let upload = toImageData(photoImage, 1024);
     if (hasBeauty(settings.beauty)) {
       // Beautify before sending, so server engines also work from the retouched photo.
@@ -86,16 +107,15 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
       variant: settings.variant, style_degree: settings.styleDegree, exaggeration: settings.exaggeration,
       identity: settings.identity, prompt: settings.prompt || '',
       ...(engine.custom ? settings.customParams?.[engine.id] || {} : {})
-    });
+    }, undefined, signal);
     const resultImage = await loadImage(URL.createObjectURL(resultBlob));
     base = toImageData(resultImage, Math.max(1024, settings.maxSide || 768));
     URL.revokeObjectURL(resultImage.src);
   } else if (engine.model) {
-    onStep('loadingModel');
-    await nextFrame();
+    await onStep('stylizing');
     base = await runCartoonModel(engine.model, warped, engine.multiple);
   } else if (engine.id === 'magenta') {
-    onStep('loadingModel');
+    await onStep('stylizing');
     base = await magentaStylize(warped, referenceImage, settings.texture > 0 ? settings.texture : 0.7);
     if (warpedFaces.length && settings.faceProtect > 0) base = toImageData_(blend(base, warped, settings.faceProtect * 0.6, faceMask(base.width, base.height, warpedFaces)));
   } else {
@@ -105,21 +125,18 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
   let result = base;
   // 4. Reference texture on top of the cartoon base, keeping faces from the base.
   if (wantsTexture) {
-    onStep('applyingReference');
-    await nextFrame();
+    await onStep('applyingReference');
     const textured = await magentaStylize(result, referenceImage, settings.texture);
     const mask = warpedFaces.length && settings.faceProtect > 0 && engine.kind === 'browser' ? faceMask(result.width, result.height, warpedFaces) : null;
     result = toImageData_(mask ? blend(textured, result, settings.faceProtect, mask) : textured);
   }
   // 5. Reference palette (robust: colour statistics only).
   if (reference && settings.palette > 0) {
-    onStep('applyingReference');
-    await nextFrame();
+    await onStep('applyingReference');
     result = toImageData_(paletteTransfer(result, reference, settings.palette));
   }
   // 6. Cute grade and detail retention.
-  onStep('finishing');
-  await nextFrame();
+  checkCancelled();
   if (settings.cute > 0) result = toImageData_(cuteGrade(result, settings.cute));
   if (settings.detail > 0 && engine.kind === 'browser') {
     const original = resizeImageData(warped, result.width, result.height);
@@ -134,8 +151,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
   const outLong = Math.min(target, sourceLong);
   let upscaled = false;
   if (outLong > resultLong * 1.05) {
-    onStep('upscaling');
-    await nextFrame();
+    await onStep('upscaling');
     try {
       const full = toImageData(photoImage, outLong);
       if (engine.kind === 'browser') {
@@ -163,6 +179,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
       console.warn('High-resolution output failed; keeping the processing size', error);
     }
   }
+  await onStep('finishing');
   const pixels = result.width * result.height;
   const type = pixels > 4.2e6 ? 'image/jpeg' : 'image/png'; // 4K/5K PNGs would be 20–60 MB
   const blob = await canvasToBlob(imageDataToCanvas(result), type, 0.95);

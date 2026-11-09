@@ -20,7 +20,7 @@ export async function fetchServerEngines(url, timeoutMs = 6000) {
   } finally { clearTimeout(timer); }
 }
 
-export async function serverStylize(url, engine, imageBlob, referenceBlob, params, timeoutMs = 900000) {
+export async function serverStylize(url, engine, imageBlob, referenceBlob, params, timeoutMs = 900000, signal) {
   const form = new FormData();
   form.append('engine', engine);
   form.append('params', JSON.stringify(params || {}));
@@ -28,6 +28,8 @@ export async function serverStylize(url, engine, imageBlob, referenceBlob, param
   if (referenceBlob) form.append('reference', referenceBlob, 'reference.png');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const cancel = () => controller.abort();
+  signal?.addEventListener('abort', cancel);
   try {
     const response = await fetch(normalizeServerURL(url) + '/api/stylize', { method: 'POST', body: form, signal: controller.signal });
     if (!response.ok) {
@@ -36,5 +38,10 @@ export async function serverStylize(url, engine, imageBlob, referenceBlob, param
       throw new Error('Server error ' + response.status + (detail ? ': ' + detail : ''));
     }
     return await response.blob();
-  } finally { clearTimeout(timer); }
+  } catch (error) {
+    if (signal?.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError', code: 'cancelled' });
+    if (error.name === 'AbortError') throw Object.assign(new Error('The server did not answer within ' + Math.round(timeoutMs / 60000) + ' min'), { code: 'serverTimeout' });
+    if (error instanceof TypeError) throw Object.assign(error, { code: 'serverUnreachable' });
+    throw error;
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
 }
