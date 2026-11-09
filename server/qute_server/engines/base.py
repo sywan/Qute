@@ -13,6 +13,16 @@ class EngineUnavailable(RuntimeError):
 class Engine:
     """Base class. Subclasses override check(), load() and infer()."""
 
+    # Optional metadata shown by the web app for engines it does not know (custom/plugin engines).
+    # label/description: str or {"en": ..., "zh-TW": ...}; params: list of parameter descriptors
+    # (see docs/SERVER_API.md, section 4).
+    label = None
+    description = None
+    citation = None
+    repo = None
+    license = None
+    params = None
+
     def __init__(self, id: str, variants=None):
         self.id = id
         self.variants = list(variants or [])
@@ -41,6 +51,10 @@ class Engine:
         variants = self.available_variants() if ok else self.variants
         if variants:
             info["variants"] = variants
+        for key in ("label", "description", "citation", "repo", "license", "params"):
+            value = getattr(self, key, None)
+            if value:
+                info[key] = value
         return info
 
     def warmup(self) -> None:

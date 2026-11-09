@@ -112,6 +112,12 @@ CUDA compiler is needed.
 
 ## API
 
+Full protocol for building or connecting your own server (any language), custom engines with
+their own controls, and a conformance checker: **[docs/SERVER_API.md](../docs/SERVER_API.md)**.
+Add your own model as a plugin with `QUTE_PLUGINS=path/to/plugin.py` (example:
+`examples/plugin_example.py`), or start from the one-file `examples/minimal_server.py`.
+
+
 - `GET /api/health`, `GET /api/engines`
 - `POST /api/warmup?engine=ID` — load weights before the first request
 - `POST /api/stylize` (multipart) `engine`, `params` (JSON: `variant`, `style_degree`, `identity`, `exaggeration`, `prompt`, `seed`), `image`, optional `reference` → `image/png`

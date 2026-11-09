@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { engines, engineById, goals } from './engines/registry';
+import { allEngines, defaultCustomParams, engineById, engineDescription, engineLabel, goals, localized } from './engines/registry';
 import { describePipeline, formatStep } from './engines/summary';
 
 const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸', custom: '⚙' };
@@ -30,7 +30,7 @@ function Slider({ label, value, onChange, min = 0, max = 1, step = 0.05, disable
 
 export default function StylePanel(props) {
   const {
-    t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference,
+    t, language, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference,
     reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile,
     serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result, workspace
   } = props;
@@ -39,21 +39,38 @@ export default function StylePanel(props) {
   const set = (key) => (value) => updateSettings({ [key]: value });
   const setWarp = (key) => (value) => updateSettings({ warp: { ...settings.warp, [key]: value } });
   const serverAvailable = (id) => serverEngines.includes(id);
+  const label = (id) => engineLabel(t, id, language);
+  const chooseEngine = (id) => {
+    const next = engineById(id);
+    const patch = { engine: id, variant: next?.variants?.[0] || '' };
+    if (next?.custom) patch.customParams = { ...settings.customParams, [id]: { ...defaultCustomParams(next), ...settings.customParams?.[id] } };
+    updateSettings(patch);
+  };
+  const customValues = engine?.custom ? { ...defaultCustomParams(engine), ...settings.customParams?.[engine.id] } : {};
+  const setCustom = (name) => (value) => updateSettings({ customParams: { ...settings.customParams, [engine.id]: { ...customValues, [name]: value } } });
   const wide = useMediaQuery(WIDE_QUERY);
   const medium = useMediaQuery('(min-width: 1000px)');
   const steps = describePipeline(settings, { hasReference: styleId !== 'none' && (styleId !== 'custom' || !!reference), serverEngines });
 
   const advancedBody = <div className="advanced-body">
       <label className="field"><span>{t('engine')}</span>
-        <select value={settings.engine} disabled={busy} onChange={(event) => updateSettings({ engine: event.target.value, variant: engineById(event.target.value).variants?.[0] || '' })}>
-          <optgroup label={t('browserEngines')}>{engines.filter((e) => e.kind === 'browser').map((e) => <option key={e.id} value={e.id} disabled={e.needsReference && !hasReference}>{t('engine_' + e.id)}</option>)}</optgroup>
-          <optgroup label={t('serverEngines')}>{engines.filter((e) => e.kind === 'server').map((e) => <option key={e.id} value={e.id} disabled={!serverAvailable(e.id)}>{t('engine_' + e.id)}{serverAvailable(e.id) ? '' : ' — ' + t('needsServer')}</option>)}</optgroup>
+        <select value={settings.engine} disabled={busy} onChange={(event) => chooseEngine(event.target.value)}>
+          <optgroup label={t('browserEngines')}>{allEngines().filter((e) => e.kind === 'browser').map((e) => <option key={e.id} value={e.id} disabled={e.needsReference && !hasReference}>{label(e.id)}</option>)}</optgroup>
+          <optgroup label={t('serverEngines')}>{allEngines().filter((e) => e.kind === 'server').map((e) => <option key={e.id} value={e.id} disabled={!serverAvailable(e.id)}>{label(e.id)}{e.custom ? ' · ' + t('customEngineTag') : ''}{serverAvailable(e.id) ? '' : ' — ' + t('needsServer')}</option>)}</optgroup>
         </select>
       </label>
-      {engine && <p className="engine-credit span-2">{t('engine_' + engine.id + '_desc')}{engine.citation !== '—' && <><br /><em>{engine.citation}</em>{engine.repo && <> · <a href={'https://github.com/' + engine.repo} target="_blank" rel="noreferrer">{engine.repo}</a></>}{engine.license && <> · {engine.license}</>}</>}</p>}
+      {engine && <p className="engine-credit span-2">{engineDescription(t, engine.id, language)}{engine.citation !== '—' && <><br /><em>{engine.citation}</em>{engine.repo && <> · <a href={/^https?:/.test(engine.repo) ? engine.repo : 'https://github.com/' + engine.repo} target="_blank" rel="noreferrer">{engine.repo}</a></>}{engine.license && <> · {engine.license}</>}</>}</p>}
       {engine?.variants && <label className="field"><span>{t('variant')}</span>
-        <select value={settings.variant || engine.variants[0]} disabled={busy} onChange={(event) => updateSettings({ variant: event.target.value })}>{engine.variants.map((v) => <option key={v} value={v}>{t('variant_' + v)}</option>)}</select>
+        <select value={settings.variant || engine.variants[0]} disabled={busy} onChange={(event) => updateSettings({ variant: event.target.value })}>{engine.variants.map((v) => <option key={v} value={v}>{t('variant_' + v) || v}</option>)}</select>
       </label>}
+      {engine?.custom && engine.paramSchema.map((p) => {
+        const value = customValues[p.name];
+        const text = localized(p.label, language) || p.name;
+        if (p.type === 'number') return <Slider key={p.name} label={text} value={Number(value ?? p.min ?? 0)} min={p.min ?? 0} max={p.max ?? 1} step={p.step ?? 0.01} onChange={setCustom(p.name)} disabled={busy} help={localized(p.help, language)} percent={false} />;
+        if (p.type === 'select') return <label key={p.name} className="field"><span>{text}</span><select value={value ?? ''} disabled={busy} onChange={(event) => setCustom(p.name)(event.target.value)}>{(p.options || []).map((o) => { const v = typeof o === 'object' ? o.value : o; return <option key={String(v)} value={v}>{typeof o === 'object' ? localized(o.label, language) || v : o}</option>; })}</select></label>;
+        if (p.type === 'boolean') return <label key={p.name} className="field check-field"><input type="checkbox" checked={!!value} disabled={busy} onChange={(event) => setCustom(p.name)(event.target.checked)} /> <span>{text}</span></label>;
+        return <label key={p.name} className="field"><span>{text}</span><input type="text" value={value ?? ''} disabled={busy} onChange={(event) => setCustom(p.name)(event.target.value)} /></label>;
+      })}
       {engine?.id === 'vtoonify' && <Slider label={t('styleDegree')} value={settings.styleDegree} onChange={set('styleDegree')} disabled={busy} help={t('styleDegreeHelp')} />}
       {engine?.id === 'warpgan' && <Slider label={t('exaggeration')} value={settings.exaggeration} min={0.2} max={2} step={0.1} onChange={set('exaggeration')} disabled={busy} percent={false} />}
       {engine?.id === 'instantid-chibi' && <Slider label={t('identity')} value={settings.identity} min={0.3} max={1.2} onChange={set('identity')} disabled={busy} help={t('identityHelp')} />}
@@ -71,7 +88,8 @@ export default function StylePanel(props) {
           <input type="url" inputMode="url" placeholder="http://localhost:8765" value={serverURL} disabled={busy} onChange={(event) => setServerURL(event.target.value)} />
         </label>
         <button type="button" className="button button-light" onClick={connectServer} disabled={busy || serverState === 'checking'}>{serverState === 'checking' ? t('serverChecking') : t('serverConnect')}</button>
-        <small>{serverState === 'ok' ? t('serverOk') + ' ' + (serverEngines.length ? serverEngines.map((id) => t('engine_' + id)).join('、') : t('serverNone')) : serverState === 'error' ? t('serverError') : t('serverHelp')}</small>
+        <a className="api-guide span-2" href="https://github.com/sywan/Qute/blob/main/docs/SERVER_API.md" target="_blank" rel="noreferrer">{t('serverGuide')} ↗</a>
+        <small>{serverState === 'ok' ? t('serverOk') + ' ' + (serverEngines.length ? serverEngines.map((id) => label(id)).join(language === 'zh-TW' ? '、' : ', ') : t('serverNone')) : serverState === 'error' ? t('serverError') : t('serverHelp')}</small>
       </div>
   </div>;
   const advancedPanel = wide
@@ -116,7 +134,7 @@ export default function StylePanel(props) {
   const actionSection = <section className="panel action-panel">
     <div className="pipeline-summary" aria-live="polite">
       <strong>{t('summaryTitle')}</strong>
-      <div className="steps">{steps.map((step, i) => <React.Fragment key={i}>{i > 0 && <span className="arrow" aria-hidden="true">→</span>}<span className={'step' + (step.warn ? ' warn' : '')}>{formatStep(step, t, (id) => t('engine_' + id))}</span></React.Fragment>)}</div>
+      <div className="steps">{steps.map((step, i) => <React.Fragment key={i}>{i > 0 && <span className="arrow" aria-hidden="true">→</span>}<span className={'step' + (step.warn ? ' warn' : '')}>{formatStep(step, t, label)}</span></React.Fragment>)}</div>
     </div>
     <button className="button button-primary generate-button" onClick={generate} disabled={busy || !photo}>{busy ? t('working') : result ? t('regenerate') : t('generate')} <span>✦</span></button>
     <div className="style-hint">{engine?.kind === 'server' ? t('serverNotice') : t('aiNotice')}</div>

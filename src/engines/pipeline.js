@@ -68,7 +68,8 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
     const refBlob = referenceImage ? await canvasToBlob(imageDataToCanvas(toImageData(referenceImage, 768))) : null;
     const resultBlob = await serverStylize(serverURL, engine.id, photoBlob, refBlob, {
       variant: settings.variant, style_degree: settings.styleDegree, exaggeration: settings.exaggeration,
-      identity: settings.identity, prompt: settings.prompt || ''
+      identity: settings.identity, prompt: settings.prompt || '',
+      ...(engine.custom ? settings.customParams?.[engine.id] || {} : {})
     });
     const resultImage = await loadImage(URL.createObjectURL(resultBlob));
     base = toImageData(resultImage, Math.max(1024, settings.maxSide || 768));

@@ -52,3 +52,23 @@ test('server connect switches chibi to InstantID only if the algorithm was untou
   const back = withServerEngines({ ...chibi, engine: 'instantid-chibi' }, 'chibi', []);
   assert.equal(back.engine, 'animeganv3-hayao'); assert.equal(back.warp.head, 1);
 });
+
+test('custom engines advertised by a server are listed, labelled and cleared', async () => {
+  const { setServerEngineInfo, engineById, engineLabel, defaultCustomParams, allEngines } = await import('../src/engines/registry.js');
+  setServerEngineInfo([
+    { id: 'dctnet', available: true },
+    { id: 'example-sepia', available: true, label: { en: 'Sepia', 'zh-TW': '懷舊' }, params: [{ name: 'strength', type: 'number', min: 0, max: 1, default: 0.8 }, { name: 'bad', type: 'weird' }] }
+  ]);
+  const e = engineById('example-sepia');
+  assert.equal(e.kind, 'server'); assert.equal(e.custom, true);
+  assert.deepEqual(e.paramSchema.map((p) => p.name), ['strength'], 'unknown param types are dropped');
+  assert.equal(engineLabel(t, 'example-sepia', 'zh-TW'), '懷舊');
+  assert.equal(engineLabel(t, 'dctnet', 'en'), 'DCT-Net', 'built-in engines keep their translations');
+  assert.deepEqual(defaultCustomParams(e), { strength: 0.8 });
+  const s = { ...settingsForGoal('custom'), engine: 'example-sepia' };
+  assert.deepEqual(describePipeline(s, { serverEngines: ['example-sepia'] }).map((st) => formatStep(st, t, (id) => engineLabel(t, id, 'en'))), ['Sepia on your server']);
+  setServerEngineInfo([]);
+  assert.equal(engineById('example-sepia'), undefined);
+  assert.ok(!allEngines().some((x) => x.custom));
+  assert.equal(withServerEngines(s, 'custom', []).engine, 'photo', 'falls back when the server is gone');
+});

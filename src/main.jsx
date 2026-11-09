@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initialLanguage, messages } from './i18n';
 import { runPipeline } from './engines/pipeline';
-import { engineById, settingsForGoal, withReference, withServerEngines } from './engines/registry';
+import { engineById, engineLabel, setServerEngineInfo, settingsForGoal, withReference, withServerEngines } from './engines/registry';
 import { fetchServerEngines, normalizeServerURL } from './engines/server';
 import StylePanel from './StylePanel';
 import { ACCEPT, normalizeImageFile } from './imageDecode';
@@ -151,7 +151,9 @@ function App() {
   const setServerURL = (value) => {
     setServerURLState(value);
     setServerState('idle');
+    setServerEngineInfo([]);
     setServerEngines([]);
+    setSettings((current) => withServerEngines(current, goal, []));
     try { localStorage.setItem('qute-server-url', value); } catch { /* storage unavailable */ }
   };
   const connectServer = async () => {
@@ -159,12 +161,14 @@ function App() {
     setServerState('checking');
     try {
       const list = await fetchServerEngines(serverURL);
+      setServerEngineInfo(list);
       const available = list.filter((e) => e.available && engineById(e.id)?.kind === 'server').map((e) => e.id);
       setServerEngines(available);
       setServerState('ok');
       setSettings((current) => withServerEngines(current, goal, available));
     } catch (error) {
       console.error('Qute server check failed', error);
+      setServerEngineInfo([]);
       setServerEngines([]);
       setServerState('error');
       setSettings((current) => withServerEngines(current, goal, []));
@@ -235,7 +239,7 @@ function App() {
       </section>
       <section className="studio" aria-labelledby="studio-title">
         <div className="section-heading"><span className="step-badge">01</span><div><p className="eyebrow">THE STUDIO</p><h2 id="studio-title">{t('studio')}</h2></div></div>
-          <StylePanel {...{ t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} workspace={
+          <StylePanel {...{ t, language, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} workspace={
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
             {cameraOpen ? <div className="camera-state">
@@ -247,7 +251,7 @@ function App() {
               </div>
               <div className="camera-actions"><button className="button button-light" onClick={stopCamera}>{t('cancel')}</button><button className="button button-primary" onClick={snap}>{t('snap')} ◎</button></div>
             </div>
-              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {t('engine_' + resultMeta.engine)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
+              : photo ? <div className="preview-state"><div className="preview-panels"><figure><figcaption>{t('original')}</figcaption><img src={photo.url} alt={t('original')} /></figure><figure><figcaption>{t('result')}{resultMeta && <span className="result-meta"> · {engineLabel(t, resultMeta.engine, language)}{resultMeta.faces ? ' · ' + t('facesFound').replace('{n}', resultMeta.faces) : ''}</span>}</figcaption>{result ? <img src={result.url} alt={t('result')} /> : <div className="result-placeholder">✦</div>}</figure></div><div className="preview-actions"><button className="button button-light" onClick={() => fileInput.current?.click()} disabled={busy}>{t('changePhoto')}</button><button className="button button-light" onClick={openCamera} disabled={busy || cameraRequesting}>{t('retakePhoto')} ◎</button><button className="button button-primary" onClick={download} disabled={!result || busy}>{t('download')} ↓</button><button className="button button-light" onClick={share} disabled={!result || busy}>{t('share')} ↗</button></div></div>
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
@@ -269,7 +273,7 @@ function App() {
         </div>
       </section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.5 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.6 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);

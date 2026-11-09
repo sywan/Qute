@@ -56,7 +56,45 @@ export const engines = [
   }
 ];
 
-export const engineById = (id) => engines.find((engine) => engine.id === id);
+// Engines a connected server advertises that this app does not know (plugins, other models).
+// They are described by the server itself (label, description, params), see docs/SERVER_API.md.
+const customEngines = new Map();
+const PARAM_TYPES = ['number', 'select', 'boolean', 'text'];
+
+export function setServerEngineInfo(list = []) {
+  customEngines.clear();
+  for (const info of list) {
+    if (!info || typeof info.id !== 'string' || engines.some((e) => e.id === info.id)) continue;
+    customEngines.set(info.id, {
+      id: info.id, kind: 'server', family: 'custom', custom: true, geometry: false,
+      label: info.label || info.id, description: info.description || '',
+      citation: typeof info.citation === 'string' ? info.citation : '—', repo: typeof info.repo === 'string' ? info.repo : '',
+      license: typeof info.license === 'string' ? info.license : '',
+      variants: Array.isArray(info.variants) && info.variants.length ? info.variants.map(String) : undefined,
+      paramSchema: (Array.isArray(info.params) ? info.params : []).filter((p) => p && typeof p.name === 'string' && PARAM_TYPES.includes(p.type))
+    });
+  }
+}
+
+export const engineById = (id) => engines.find((engine) => engine.id === id) || customEngines.get(id);
+export const allEngines = () => [...engines, ...customEngines.values()];
+
+// Text from the server may be a string or {"en": ..., "zh-TW": ...}.
+export function localized(value, language) {
+  if (!value || typeof value === 'string') return value || '';
+  return value[language] || value.en || Object.values(value)[0] || '';
+}
+export function engineLabel(t, id, language) {
+  const engine = engineById(id);
+  return engine?.custom ? localized(engine.label, language) : t('engine_' + id) || id;
+}
+export function engineDescription(t, id, language) {
+  const engine = engineById(id);
+  return engine?.custom ? localized(engine.description, language) : t('engine_' + id + '_desc') || '';
+}
+export function defaultCustomParams(engine) {
+  return Object.fromEntries((engine?.paramSchema || []).filter((p) => p.default !== undefined).map((p) => [p.name, p.default]));
+}
 
 export const defaultWarp = { head: 0, eyes: 0, chin: 0, body: 0 };
 
@@ -102,7 +140,8 @@ export function settingsForGoal(goalId, { hasReference = false, serverEngines = 
     styleDegree: 0.5,
     exaggeration: 1,
     identity: 0.8,
-    maxSide: 768
+    maxSide: 768,
+    customParams: {}
   };
 }
 
@@ -118,6 +157,8 @@ export function withReference(settings, goalId, hasReference) {
 // picked another algorithm; switch back if that server engine is no longer available.
 export function withServerEngines(settings, goalId, serverEngines) {
   const goal = goals[goalId];
+  // A custom engine from a server that is no longer connected: fall back to the goal's engine.
+  if (!engineById(settings.engine)) settings = { ...settings, engine: goal.engine, warp: { ...goal.warp } };
   if (!goal.serverEngine) return settings;
   const available = serverEngines.includes(goal.serverEngine);
   if (available && settings.engine === goal.engine) return { ...settings, engine: goal.serverEngine, warp: { ...defaultWarp } };

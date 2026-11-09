@@ -61,6 +61,8 @@ PYTHON = env("QUTE_SUBPROCESS_PYTHON", sys.executable)
 LOCAL_ENGINES = env("QUTE_ENGINES", "all")
 REMOTE_ENGINES = _pairs(env("QUTE_REMOTE_ENGINES", ""))
 REMOTE_TIMEOUT = float(env("QUTE_REMOTE_TIMEOUT", "600"))
+# Extra engines: comma-separated Python module names or .py files (see examples/plugin_example.py).
+PLUGINS = env("QUTE_PLUGINS", "")
 
 # DCT-Net (ModelScope)
 DCTNET_ENABLED = env("DCTNET_ENABLED", "1") == "1"

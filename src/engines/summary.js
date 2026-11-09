@@ -48,7 +48,7 @@ export function formatStep(step, t, engineName) {
   let text = t(step.key);
   const values = { ...v };
   if (values.engine) values.engine = engineName(values.engine);
-  if (values.variant) values.variant = t('variant_' + values.variant);
+  if (values.variant) values.variant = t('variant_' + values.variant) || values.variant;
   for (const [k, val] of Object.entries(values)) text = text.replace('{' + k + '}', val);
   if (step.key === 'sum_server') {
     const extras = [values.variant, values.degree && t('styleDegree') + ' ' + values.degree, values.identity && t('identity') + ' ' + values.identity, values.exaggeration && t('exaggeration') + ' ×' + values.exaggeration].filter(Boolean);

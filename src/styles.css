@@ -109,3 +109,5 @@ details.advanced-panel summary{display:flex;align-items:center;gap:10px}
 @media(max-width:850px){.intro{grid-template-columns:1fr;padding:4px 0 18px}.intro-facts ul{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.intro h1{font-size:30px}.intro-facts ul{grid-template-columns:1fr}.why-compare{padding:10px}}
 .footer-qr{color:#8f6cc4;text-decoration:none;font-weight:700}.footer-qr:hover{text-decoration:underline}
+.api-guide{display:inline-block;margin:6px 0 2px;font-size:12px;font-weight:700;color:#8f6cc4;text-decoration:none}.api-guide:hover{text-decoration:underline}
+.check-field{display:flex;align-items:center;gap:8px}.check-field input{width:auto}

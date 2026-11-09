@@ -28,7 +28,8 @@ from .engines import ENGINES, EngineUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("qute")
-app = FastAPI(title="Qute inference server", version="0.4.0")
+API_VERSION = "qute-server/1"  # protocol described in docs/SERVER_API.md
+app = FastAPI(title="Qute inference server", version="0.4.1")
 
 
 @app.middleware("http")
@@ -93,7 +94,7 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "version": app.version}
+    return {"ok": True, "version": app.version, "api": API_VERSION}
 
 
 @app.get("/api/engines")
