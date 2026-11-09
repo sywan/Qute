@@ -55,7 +55,7 @@ export async function runCartoonModel(file, imageData, multiple = 32) {
 }
 
 // YuNet: letterbox to 640x640, BGR float 0..255, NCHW.
-export async function detectFaces(imageData, threshold = 0.6) {
+export async function detectFaces(imageData, threshold = 0.5) {
   const ort = await loadOrt();
   const session = await getSession('yunet-2023mar.onnx');
   const size = 640;

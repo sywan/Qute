@@ -1,15 +1,17 @@
 // Qute stylisation pipeline:
-//   photo -> (face detection) -> (chibi/cute geometric warp) -> base engine
+//   photo -> (face detection) -> (chibi/cute geometric warp, fuller lips) -> (beauty: skin, lips) -> base engine
 //         -> (reference texture via Magenta, with face protection) -> (reference palette)
 //         -> (cute grade) -> (detail retention) -> PNG
 import { getStyleModel } from '../styleTransfer';
 import { canvasToBlob, imageDataToCanvas, loadImage, nextFrame, resizeImageData, toImageData } from './canvas';
-import { applyWarp, blend, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
+import { applyBeauty, applyWarp, blend, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
 import { detectFaces, runCartoonModel } from './onnx';
 import { engineById } from './registry';
 import { serverStylize } from './server';
 
 const hasWarp = (warp) => Object.values(warp || {}).some((v) => v > 0);
+const hasBeauty = (beauty) => ['smooth', 'brighten', 'lips'].some((k) => (beauty?.[k] || 0) > 0);
+const warpParams = (settings) => ({ ...settings.warp, lips: settings.beauty?.fuller || 0 });
 
 async function magentaStylize(content, styleImage, strength) {
   const model = await getStyleModel();
@@ -40,7 +42,7 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
 
   // 1. Faces are needed for geometric warps and for face protection under reference texture.
   const wantsTexture = referenceImage && settings.texture > 0 && engine.id !== 'magenta';
-  const needFaces = engine.kind === 'browser' && (hasWarp(settings.warp) || ((wantsTexture || engine.id === 'magenta') && settings.faceProtect > 0));
+  const needFaces = hasBeauty(settings.beauty) || (engine.kind === 'browser' && (hasWarp(warpParams(settings)) || ((wantsTexture || engine.id === 'magenta') && settings.faceProtect > 0)));
   let faces = [];
   if (needFaces) {
     onStep('detectingFaces');
@@ -51,20 +53,32 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
   // 2. Geometric warp (big head, big eyes, rounder chin, shorter body).
   let warped = photo;
   let warpedFaces = faces;
-  if (engine.kind === 'browser' && faces.length && hasWarp(settings.warp)) {
+  if (engine.kind === 'browser' && faces.length && hasWarp(warpParams(settings))) {
     onStep('warping');
     await nextFrame();
-    const plan = planChibiWarp(faces, settings.warp, photo.width, photo.height);
+    const plan = planChibiWarp(faces, warpParams(settings), photo.width, photo.height);
     const out = applyWarp(photo, plan);
     warped = new ImageData(out.data, out.width, out.height);
     warpedFaces = mapFaces(faces, plan);
+  }
+
+  // 2b. Beauty (美肌): smoother, brighter skin and lip colour on the (warped) photo.
+  if (warpedFaces.length && hasBeauty(settings.beauty)) {
+    onStep('beautifying');
+    await nextFrame();
+    warped = toImageData_(applyBeauty(warped, warpedFaces, settings.beauty));
   }
 
   // 3. Base engine.
   let base;
   if (engine.kind === 'server') {
     onStep('serverWorking');
-    const photoBlob = await canvasToBlob(imageDataToCanvas(toImageData(photoImage, 1024)));
+    let upload = toImageData(photoImage, 1024);
+    if (hasBeauty(settings.beauty)) {
+      // Beautify before sending, so server engines also work from the retouched photo.
+      try { upload = toImageData_(applyBeauty(upload, await detectFaces(upload), settings.beauty)); } catch (error) { console.warn('Beauty skipped', error); }
+    }
+    const photoBlob = await canvasToBlob(imageDataToCanvas(upload));
     const refBlob = referenceImage ? await canvasToBlob(imageDataToCanvas(toImageData(referenceImage, 768))) : null;
     const resultBlob = await serverStylize(serverURL, engine.id, photoBlob, refBlob, {
       variant: settings.variant, style_degree: settings.styleDegree, exaggeration: settings.exaggeration,

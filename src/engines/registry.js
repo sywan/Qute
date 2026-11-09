@@ -97,6 +97,7 @@ export function defaultCustomParams(engine) {
 }
 
 export const defaultWarp = { head: 0, eyes: 0, chin: 0, body: 0 };
+export const defaultBeauty = { smooth: 0, brighten: 0, lips: 0, fuller: 0 };
 
 // Goal presets: what the visitor wants, mapped to an engine and tuned parameters.
 // `reference` describes how an optional reference image is used.
@@ -116,6 +117,12 @@ export const goals = {
   bold: {
     engine: 'animeganv3-shinkai', warp: { ...defaultWarp }, detail: 0, cute: 0,
     reference: { palette: 0.6, texture: 0.7, faceProtect: 0.7 }
+  },
+  // Beauty (美肌): retouch the photo itself (smoother, brighter skin, lip colour), no restyling.
+  beauty: {
+    engine: 'photo', warp: { ...defaultWarp }, detail: 0, cute: 0,
+    beauty: { smooth: 0.55, brighten: 0.3, lips: 0.3, fuller: 0.15 },
+    reference: { palette: 0, texture: 0, faceProtect: 0.8 }
   },
   // Everything off: the result equals the photo until the visitor turns something on in Advanced.
   custom: {
@@ -141,7 +148,8 @@ export function settingsForGoal(goalId, { hasReference = false, serverEngines = 
     exaggeration: 1,
     identity: 0.8,
     maxSide: 768,
-    customParams: {}
+    customParams: {},
+    beauty: { ...(goal.beauty || defaultBeauty) }
   };
 }
 

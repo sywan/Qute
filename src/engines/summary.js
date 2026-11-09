@@ -18,6 +18,9 @@ export function describePipeline(settings, { hasReference = false, serverEngines
   if (browser && warps.length) steps.push({ key: 'sum_warp', values: { parts: warps.map((k) => ({ part: k, amount: pct(settings.warp[k]) })) } });
   if (!browser && warps.length) steps.push({ key: 'sum_warpIgnored', values: {}, warn: true });
 
+  const beautyParts = ['smooth', 'brighten', 'lips', 'fuller'].filter((k) => (settings.beauty?.[k] || 0) > 0 && (browser || k !== 'fuller'));
+  if (beautyParts.length) steps.push({ key: 'sum_beauty', values: { parts: beautyParts.map((k) => ({ part: k, amount: pct(settings.beauty[k]) })) } });
+
   if (engine.id === 'magenta') {
     steps.push({ key: 'sum_magenta', values: { amount: pct(settings.texture > 0 ? settings.texture : 0.7) } });
     if (settings.faceProtect > 0) steps.push({ key: 'sum_faceProtect', values: { amount: pct(settings.faceProtect * 0.6) } });
@@ -42,6 +45,9 @@ export function describePipeline(settings, { hasReference = false, serverEngines
 // Fill "{name}" placeholders; `t` translates keys, `engineName(id)` gives display names.
 export function formatStep(step, t, engineName) {
   const v = step.values;
+  if (step.key === 'sum_beauty') {
+    return t('sum_beauty').replace('{parts}', v.parts.map((p) => t('sb_' + p.part) + ' ' + p.amount).join(t('listSep')));
+  }
   if (step.key === 'sum_warp') {
     return t('sum_warp').replace('{parts}', v.parts.map((p) => t('sw_' + p.part) + ' ' + p.amount).join(t('listSep')));
   }

@@ -41,21 +41,41 @@ export function planChibiWarp(faces, params, width, height) {
   const eyes = clamp(params.eyes ?? 0, 0, 1);
   const chin = clamp(params.chin ?? 0, 0, 1);
   const body = clamp(params.body ?? 0, 0, 1);
+  const lips = clamp(params.lips ?? 0, 0, 1); // beauty: fuller lips
   const headBulges = [], featureBulges = [];
   let squashFrom = null;
-  for (const f of faces) {
+  const centers = faces.map((f) => [f.x, f.y - f.h * 0.12]);
+  faces.forEach((f, i) => {
     const size = Math.max(f.w, f.h);
     const [re, le, , rm, lm] = f.landmarks;
     const eyeDist = Math.hypot(le[0] - re[0], le[1] - re[1]) || size * 0.4;
-    if (head > 0) headBulges.push({ x: f.x, y: f.y - f.h * 0.12, r: size * 1.15, amount: 0.42 * head });
+    if (head > 0) {
+      const [cx, cy] = centers[i];
+      // Group photos: keep each head's enlargement circle away from its neighbours, so one
+      // enlarged head never swallows the next person, and keep heads near an edge inside the frame.
+      let r = size * 1.15;
+      for (let j = 0; j < centers.length; j++) {
+        if (j !== i) r = Math.min(r, 0.5 * Math.hypot(centers[j][0] - cx, centers[j][1] - cy));
+      }
+      r = Math.max(r, size * 0.55);
+      const headRadius = 0.6 * size;
+      const edge = Math.min(cx, width - cx, cy);
+      const maxMag = Math.max(1, Math.min((edge + 0.15 * size) / headRadius, (0.95 * r) / headRadius));
+      const amount = Math.min(0.42 * head, 1 - 1 / maxMag);
+      if (amount > 0.005) headBulges.push({ x: cx, y: cy, r, amount });
+    }
     if (eyes > 0) for (const e of [re, le]) featureBulges.push({ x: e[0], y: e[1], r: eyeDist * 0.5, amount: 0.38 * eyes });
+    if (lips > 0) {
+      const mouthW = Math.hypot(lm[0] - rm[0], lm[1] - rm[1]) || size * 0.35;
+      featureBulges.push({ x: (rm[0] + lm[0]) / 2, y: (rm[1] + lm[1]) / 2 + mouthW * 0.08, r: mouthW * 0.75, amount: 0.25 * lips });
+    }
     if (chin > 0) {
       const mouthX = (rm[0] + lm[0]) / 2, mouthY = (rm[1] + lm[1]) / 2;
       featureBulges.push({ x: mouthX, y: mouthY + f.h * 0.18, r: f.w * 0.55, amount: -0.22 * chin });
     }
     const chinY = f.y + f.h * 0.5 + size * 0.25;
     squashFrom = squashFrom === null ? chinY : Math.max(squashFrom, chinY);
-  }
+  });
   let outHeight = height;
   let k = 1;
   if (body > 0 && squashFrom !== null && squashFrom < height - 4) {
@@ -217,7 +237,7 @@ export function cuteGrade(img, amount = 1) {
 }
 
 // ---- YuNet decoding (OpenCV FaceDetectorYN, 2023mar, 640x640 input) ----
-export function decodeYuNet(outputs, { inputSize = 640, threshold = 0.6, nms = 0.3, scale = 1 } = {}) {
+export function decodeYuNet(outputs, { inputSize = 640, threshold = 0.5, nms = 0.3, scale = 1 } = {}) {
   const dets = [];
   for (const stride of [8, 16, 32]) {
     const cols = inputSize / stride;
@@ -248,4 +268,129 @@ export function iou(a, b) {
   const iy = Math.max(0, Math.min(a.y + a.h / 2, b.y + b.h / 2) - Math.max(a.y - a.h / 2, b.y - b.h / 2));
   const inter = ix * iy;
   return inter / (a.w * a.h + b.w * b.h - inter);
+}
+
+// ---- Beauty (美肌): skin smoothing, brighter skin, lip colour ----
+
+// Mean over a (2r+1)^2 window with an integral image; edges use the available pixels.
+function boxMean(src, w, h, r) {
+  const integral = new Float64Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let row = 0;
+    for (let x = 0; x < w; x++) {
+      row += src[y * w + x];
+      integral[(y + 1) * (w + 1) + x + 1] = integral[y * (w + 1) + x + 1] + row;
+    }
+  }
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+      const sum = integral[y1 * (w + 1) + x1] - integral[y0 * (w + 1) + x1] - integral[y1 * (w + 1) + x0] + integral[y0 * (w + 1) + x0];
+      out[y * w + x] = sum / ((x1 - x0) * (y1 - y0));
+    }
+  }
+  return out;
+}
+
+// Edge-preserving smoothing (self-guided filter, He et al., TPAMI 2013) of one channel.
+function guidedSelf(channel, w, h, r, eps) {
+  const sq = new Float32Array(channel.length);
+  for (let i = 0; i < channel.length; i++) sq[i] = channel[i] * channel[i];
+  const mean = boxMean(channel, w, h, r), meanSq = boxMean(sq, w, h, r);
+  const a = new Float32Array(channel.length), b = new Float32Array(channel.length);
+  for (let i = 0; i < channel.length; i++) {
+    const v = meanSq[i] - mean[i] * mean[i];
+    a[i] = v / (v + eps);
+    b[i] = mean[i] - a[i] * mean[i];
+  }
+  const ma = boxMean(a, w, h, r), mb = boxMean(b, w, h, r);
+  const out = new Float32Array(channel.length);
+  for (let i = 0; i < channel.length; i++) out[i] = ma[i] * channel[i] + mb[i];
+  return out;
+}
+
+const smooth01 = (e0, e1, v) => { const t = clamp((v - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+
+function ellipseWeight(x, y, cx, cy, rx, ry, feather = 0.35) {
+  const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+  return d >= 1 ? 0 : d <= 1 - feather ? 1 : 1 - smooth01(1 - feather, 1, d);
+}
+
+/** Skin and lip masks (0..1) for the detected faces. Skin excludes eyes and mouth and is
+ *  weighted by a YCrCb skin-colour test so hair and background are left alone. */
+export function beautyMasks(img, faces) {
+  const { width: w, height: h, data } = img;
+  const skin = new Float32Array(w * h), lips = new Float32Array(w * h);
+  for (const f of faces) {
+    const [re, le, , rm, lm] = f.landmarks;
+    const eyeDist = Math.hypot(le[0] - re[0], le[1] - re[1]) || f.w * 0.4;
+    const mouthW = Math.hypot(lm[0] - rm[0], lm[1] - rm[1]) || f.w * 0.35;
+    const mx = (rm[0] + lm[0]) / 2, my = (rm[1] + lm[1]) / 2 + mouthW * 0.05;
+    const rx = f.w * 0.56, ry = f.h * 0.66, cx = f.x, cy = f.y + f.h * 0.04;
+    const x0 = Math.max(0, Math.floor(cx - rx)), x1 = Math.min(w - 1, Math.ceil(cx + rx));
+    const y0 = Math.max(0, Math.floor(cy - ry)), y1 = Math.min(h - 1, Math.ceil(cy + ry));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      let face = ellipseWeight(x, y, cx, cy, rx, ry);
+      if (!face) continue;
+      const i = y * w + x, r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+      const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b, cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+      const skinTone = smooth01(128, 136, cr) * (1 - smooth01(175, 185, cr)) * smooth01(72, 80, cb) * (1 - smooth01(130, 138, cb));
+      const eyes = Math.max(ellipseWeight(x, y, re[0], re[1], eyeDist * 0.32, eyeDist * 0.2, 0.5), ellipseWeight(x, y, le[0], le[1], eyeDist * 0.32, eyeDist * 0.2, 0.5));
+      const lip = ellipseWeight(x, y, mx, my, mouthW * 0.68, mouthW * 0.36, 0.45);
+      face *= skinTone * (1 - eyes) * (1 - lip);
+      if (face > skin[i]) skin[i] = face;
+      if (lip) {
+        // Only reddish, saturated pixels (lips), never teeth or the inside of the mouth.
+        const mx3 = Math.max(r, g, b), sat = mx3 ? (mx3 - Math.min(r, g, b)) / mx3 : 0;
+        const v = lip * smooth01(1.12, 1.4, r / (g + 8)) * smooth01(0.18, 0.32, sat) * smooth01(40, 70, mx3);
+        if (v > lips[i]) lips[i] = v;
+      }
+    }
+  }
+  return { skin, lips };
+}
+
+/** params: { smooth, brighten, lips } each 0..1. Returns a new image. */
+export function applyBeauty(img, faces, params) {
+  const smoothAmt = clamp(params.smooth ?? 0, 0, 1), bright = clamp(params.brighten ?? 0, 0, 1), lipAmt = clamp(params.lips ?? 0, 0, 1);
+  if (!faces.length || (smoothAmt <= 0 && bright <= 0 && lipAmt <= 0)) return img;
+  const { width: w, height: h, data } = img;
+  const { skin, lips } = beautyMasks(img, faces);
+  const out = makeImage(w, h, new Uint8ClampedArray(data));
+  const o = out.data;
+  if (smoothAmt > 0) {
+    const faceSize = faces.reduce((m, f) => Math.max(m, f.w), 0);
+    const r = Math.max(2, Math.round(faceSize * (0.025 + 0.03 * smoothAmt)));
+    const eps = (12 + 30 * smoothAmt) ** 2;
+    for (let c = 0; c < 3; c++) {
+      const ch = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) ch[i] = data[i * 4 + c];
+      const sm = guidedSelf(ch, w, h, r, eps);
+      for (let i = 0; i < w * h; i++) {
+        const m = skin[i] * smoothAmt * 0.9;
+        if (m > 0) o[i * 4 + c] = ch[i] + (sm[i] - ch[i]) * m;
+      }
+    }
+  }
+  for (let i = 0; i < w * h; i++) {
+    const p = i * 4;
+    if (bright > 0 && skin[i] > 0) {
+      const m = skin[i] * bright;
+      o[p] = o[p] + (255 - o[p]) * 0.22 * m;
+      o[p + 1] = o[p + 1] + (255 - o[p + 1]) * 0.2 * m;
+      o[p + 2] = o[p + 2] + (255 - o[p + 2]) * 0.2 * m;
+    }
+    if (lipAmt > 0 && lips[i] > 0) {
+      const r = o[p], g = o[p + 1], b = o[p + 2];
+      const y = 0.299 * r + 0.587 * g + 0.114 * b;
+      const scale = (y * 1.05) / (0.299 * 205 + 0.587 * 45 + 0.114 * 75);
+      const m = lips[i] * lipAmt * 0.65;
+      o[p] = r + (205 * scale - r) * m;
+      o[p + 1] = g + (45 * scale - g) * m;
+      o[p + 2] = b + (75 * scale - b) * m;
+    }
+  }
+  return out;
 }

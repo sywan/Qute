@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { allEngines, defaultCustomParams, engineById, engineDescription, engineLabel, goals, localized } from './engines/registry';
 import { describePipeline, formatStep } from './engines/summary';
 
-const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸', custom: '⚙' };
+const goalIcons = { close: '◐', cute: '♡', chibi: '☻', bold: '✸', beauty: '✿', custom: '⚙' };
 const warpKeys = ['head', 'eyes', 'chin', 'body'];
+const beautyKeys = ['smooth', 'brighten', 'lips', 'fuller'];
 export const WIDE_QUERY = '(min-width: 1500px)';
 
 function useMediaQuery(query) {
@@ -38,6 +39,7 @@ export default function StylePanel(props) {
   const hasReference = styleId !== 'none';
   const set = (key) => (value) => updateSettings({ [key]: value });
   const setWarp = (key) => (value) => updateSettings({ warp: { ...settings.warp, [key]: value } });
+  const setBeauty = (key) => (value) => updateSettings({ beauty: { ...settings.beauty, [key]: value } });
   const serverAvailable = (id) => serverEngines.includes(id);
   const selectedArt = styles.find((item) => item.id === styleId && item.title);
   const label = (id) => engineLabel(t, id, language);
@@ -139,6 +141,12 @@ export default function StylePanel(props) {
 
 
   </section>;
+  const beautySection = <section className="panel beauty-panel">
+    <h3 className="panel-subtitle">{t('beautyTitle')}</h3>
+    <div className="beauty-grid">
+      {beautyKeys.map((key) => <Slider key={key} label={t('beauty_' + key)} value={settings.beauty?.[key] || 0} onChange={setBeauty(key)} disabled={busy || (key === 'fuller' && engine?.kind !== 'browser')} help={key === 'smooth' ? t('beautyHelp') : undefined} />)}
+    </div>
+  </section>;
   const actionSection = <section className="panel action-panel">
     <div className="pipeline-summary" aria-live="polite">
       <strong>{t('summaryTitle')}</strong>
@@ -152,15 +160,15 @@ export default function StylePanel(props) {
   // reference, then advanced across the full width.  Narrow: one column in working order.
   if (wide) return <div className="studio-grid layout-wide">
     <div className="col">{workspace}{actionSection}</div>
-    <div className="col">{goalsSection}{referenceSection}</div>
+    <div className="col">{goalsSection}{referenceSection}{beautySection}</div>
     <div className="col">{advancedPanel}</div>
   </div>;
   if (medium) return <div className="studio-grid layout-medium">
     <div className="col">{workspace}{actionSection}</div>
-    <div className="col">{goalsSection}{referenceSection}</div>
+    <div className="col">{goalsSection}{referenceSection}{beautySection}</div>
     <div className="col span-all">{advancedPanel}</div>
   </div>;
   return <div className="studio-grid layout-narrow">
-    <div className="col">{workspace}{goalsSection}{referenceSection}{actionSection}{advancedPanel}</div>
+    <div className="col">{workspace}{goalsSection}{referenceSection}{beautySection}{actionSection}{advancedPanel}</div>
   </div>;
 }
