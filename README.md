@@ -1,4 +1,4 @@
-# Qute v0.3.7
+# Qute v0.3.8
 
 免登入的 React 照片風格轉換 App。介面提供**繁體中文與英文**切換，預設繁體中文。照片在訪客瀏覽器內處理，沒有 Qute 圖片伺服器，也不使用雲端 AI 額度。v0.3 起改為多演算法框架：訪客選擇「貼近原圖／更可愛／Q 版／強烈風格」，Qute 自動挑演算法與參數；另可連線自己部署的 Python 伺服器，使用 DCT-Net、VToonify、InstantID、WarpGAN。
 
@@ -22,7 +22,7 @@ Large cloud AI image models can redraw a photo beautifully. Qute deliberately do
 - **隨視窗寬度調整的版面**：寬螢幕（≥1500px）三欄：照片＋轉換按鈕｜效果目標＋參考圖｜進階設定；中等寬度兩欄，進階設定橫跨底部並分兩欄排列；手機單欄。滑桿說明改為滑過或點選時顯示
 - **多種圖片格式**：JPEG、PNG、WebP、GIF、BMP、ICO、SVG、AVIF 由瀏覽器直接讀取；HEIC／HEIF（iPhone 照片）與 TIFF（含 LZW／Deflate、16 位元、多頁取第一頁）在瀏覽器不支援時，於本機自動轉換，不上傳；檔案上限 60 MB，超過 4,000 萬像素會先縮小
 - **效果目標**：貼近原圖（White-box Cartoonization）、更可愛（AnimeGANv3＋大眼圓臉）、Q 版（大頭大眼短身變形＋AnimeGANv3；伺服器可用時改用 InstantID）、強烈風格（AnimeGANv3 Shinkai＋參考圖筆觸）
-- **參考圖（選用）**：16 幅公有領域名畫（達文西、米開朗基羅、透納、葛飾北齋、歌川廣重、雷諾瓦、卡耶博特、秀拉、梵谷、孟克、塞尚、高更、馬諦斯、莫內、畢卡比亞）或自選圖，以縮圖格狀排列；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
+- **參考圖（選用）**：19 幅公有領域名畫（達文西、米開朗基羅、透納、葛飾北齋、歌川廣重、雷諾瓦、卡耶博特、秀拉、梵谷、孟克、塞尚、高更、雷頓、馬諦斯、莫內、克林姆、畢卡比亞、康丁斯基）或自選圖，以縮圖格狀排列；可分別調整「色彩」（Lab 色彩轉移，不塗抹）、「筆觸」（Magenta 風格遷移）與「臉部保護」
 - **自訂**目標：全部步驟預設關閉，由「進階設定」逐項開啟；轉換按鈕上方即時顯示「本次轉換會依序執行」的步驟摘要（例如：臉部變形 → White-box → 參考圖色彩 50% → 柔亮色調 40%）
 - 切換參考圖開／關只調整參考圖色彩與筆觸，其他進階設定保留；連線伺服器時只在演算法未被手動更改時才改用 InstantID
 - **進階設定**：直接選演算法、頭／眼／下巴／身體變形、柔亮色調、細節保留、處理尺寸；自架伺服器網址
@@ -91,9 +91,12 @@ Vite 的 `base` 設為 `/Qute/`，輸出位於 `dist/`。推送至 `main` 後，
 | 吶喊 The Scream | 孟克，1893 | GitHub jcjohnson/neural-style |
 | 蘋果籃 The Basket of Apples | 塞尚，c. 1893 | GitHub joseamijares/frame-dashboard |
 | 神之日 Mahana no Atua | 高更，1894 | GitHub joseamijares/frame-dashboard |
+| 燃燒的六月 Flaming June | 雷頓，1895 | GitHub Aces12345/becoming-plates |
 | 戴帽子的女人 Woman with a Hat | 馬諦斯，1905 | GitHub jcjohnson/neural-style |
 | 睡蓮 Water Lilies | 莫內，1906 | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Water_Lilies_-_1906,_Ryerson.jpg) |
+| 吻 The Kiss | 克林姆，1907–1908 | GitHub inescoelho/the-kiss |
 | Udnie | 畢卡比亞，1913 | GitHub pytorch/examples |
+| 構成第八號 Composition VIII | 康丁斯基，1923 | GitHub akuji1993/generated-kandinsky |
 
 照片內容不寫入倉庫、Qute 伺服器或 Magenta 模型儲存空間。
 

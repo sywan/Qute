@@ -21,9 +21,12 @@ export const artworks = [
   A('munch-scream', 'The Scream', '吶喊', 'Edvard Munch', '孟克', '1893', 'Expressionism', '表現主義'),
   A('cezanne-basket-of-apples', 'The Basket of Apples', '蘋果籃', 'Paul Cézanne', '塞尚', 'c. 1893', 'Post-Impressionism', '後印象派'),
   A('gauguin-mahana-no-atua', 'Day of the God (Mahana no Atua)', '神之日', 'Paul Gauguin', '高更', '1894', 'Synthetism', '綜合主義'),
+  A('leighton-flaming-june', 'Flaming June', '燃燒的六月', 'Frederic Leighton', '雷頓', '1895', 'Academic art', '學院派'),
   A('matisse-woman-with-a-hat', 'Woman with a Hat', '戴帽子的女人', 'Henri Matisse', '馬諦斯', '1905', 'Fauvism', '野獸派'),
   A('monet', 'Water Lilies', '睡蓮', 'Claude Monet', '莫內', '1906', 'Impressionism', '印象派'),
-  A('picabia-udnie', 'Udnie', 'Udnie（年輕的美國女孩）', 'Francis Picabia', '畢卡比亞', '1913', 'Cubism / Orphism', '立體派／奧費主義')
+  A('klimt-the-kiss', 'The Kiss', '吻', 'Gustav Klimt', '克林姆', '1907–1908', 'Art Nouveau (Vienna Secession)', '新藝術運動（維也納分離派）'),
+  A('picabia-udnie', 'Udnie', 'Udnie（年輕的美國女孩）', 'Francis Picabia', '畢卡比亞', '1913', 'Cubism / Orphism', '立體派／奧費主義'),
+  A('kandinsky-composition-viii', 'Composition VIII', '構成第八號', 'Wassily Kandinsky', '康丁斯基', '1923', 'Abstract art', '抽象藝術')
 ];
 
 export const artworkImage = (base, id) => base + 'styles/' + id + '.jpg';

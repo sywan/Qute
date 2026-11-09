@@ -272,7 +272,7 @@ function App() {
         </div>
       </section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.7 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><a className="footer-qr" href={base + 'brand/qute-qr-code.png'} target="_blank" rel="noreferrer">▦ {t('shareQR')}</a><span>v0.3.8 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);
