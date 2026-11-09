@@ -233,7 +233,7 @@ function App() {
       </section>
       <section className="studio" aria-labelledby="studio-title">
         <div className="section-heading"><span className="step-badge">01</span><div><p className="eyebrow">THE STUDIO</p><h2 id="studio-title">{t('studio')}</h2></div></div>
-        <div className="studio-grid">
+          <StylePanel {...{ t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} workspace={
           <div className="workspace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); acceptFile(event.dataTransfer.files?.[0], 'photo'); }}>
             <div className="workspace-bar"><span>{t('yourPhoto')}</span><span className="muted">{photo?.name || t('noPhoto')}</span></div>
             {cameraOpen ? <div className="camera-state">
@@ -249,15 +249,14 @@ function App() {
               : <div className="empty-state"><div className="upload-icon">↥</div><h3>{t('uploadTitle')}</h3><p>{t('uploadHelp')}</p><div className="upload-actions"><button className="button button-primary" onClick={() => fileInput.current?.click()}>{t('choosePhoto')} ↗</button><button className="button button-light" onClick={openCamera} disabled={cameraRequesting}>{t('openCamera')} ◎</button></div><p className="drop-hint">{t('dropHint')}</p></div>}
             <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'photo'); event.target.value = ''; }} />
           </div>
-          <StylePanel {...{ t, busy, goal, chooseGoal, settings, updateSettings, styles, styleId, chooseReference, reference, referenceInput, referenceDragging, setReferenceDragging, acceptFile, serverURL, setServerURL, connectServer, serverEngines, serverState, generate, photo, result }} />
+          } />
           <input ref={referenceInput} type="file" accept={ACCEPT} hidden onChange={(event) => { acceptFile(event.target.files?.[0], 'reference'); event.target.value = ''; }} />
-        </div>
         <p className="status" role="status" aria-live="polite">{statusKey ? t(statusKey).replace('{format}', (formatHint || '?').toUpperCase()) : ''}</p>
       </section>
       <section className="explain"><p>{t('artistNotice')}</p><p>{t('modelSource')}</p></section>
       <section className="how"><div><p className="eyebrow">HOW IT WORKS</p><h2>{t('how1')}<br />{t('how2')}</h2></div><div className="how-steps"><p><b>01</b><span>{t('step1')}</span></p><p><b>02</b><span>{t('step2')}</span></p><p><b>03</b><span>{t('step3')}</span></p></div></section>
     </main>
-    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.3 · React + AI</span></footer>
+    <footer><span className="footer-brand">qute<span>.</span></span><span>{t('footer')}</span><span>v0.3.4 · React + AI</span></footer>
   </>;
 }
 createRoot(document.getElementById('root')).render(<App />);

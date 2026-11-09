@@ -18,3 +18,67 @@
 .goal-option.goal-custom{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center;gap:10px}.goal-option.goal-custom small{margin-left:auto;text-align:right}
 .pipeline-summary{margin-top:16px;border:1px solid #e6dcf3;background:#fbf8ff;border-radius:12px;padding:11px 13px}.pipeline-summary strong{display:block;font-size:12px;color:#6d6175;margin-bottom:6px}.pipeline-summary .steps{display:flex;flex-wrap:wrap;gap:5px;align-items:center}.pipeline-summary .step{font-size:11.5px;background:#fff;border:1px solid #e4dcdf;border-radius:999px;padding:4px 9px;color:#4d4552}.pipeline-summary .arrow{color:#a58bd1;font-size:12px}.pipeline-summary .step.warn{border-color:#e7b9a6;background:#fff4ef;color:#9e3a3a}
 @media(max-width:560px){.goal-option.goal-custom{flex-wrap:wrap}.goal-option.goal-custom small{margin-left:0;text-align:left}}
+/* ---- v0.3.4 fluid, balanced layout ---- */
+main,.topbar,footer{max-width:none;padding-left:clamp(16px,3vw,56px);padding-right:clamp(16px,3vw,56px)}
+.intro{min-height:0;padding:10px 0 34px}.hero-art{height:300px;transform:scale(.82)}
+.studio{padding:clamp(16px,2vw,32px)}
+.studio-grid{grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);grid-template-areas:"work controls" "advanced controls";align-items:start;gap:clamp(16px,1.6vw,26px)}
+.workspace{grid-area:work;min-height:380px}
+.style-panel{grid-area:controls;min-width:0}
+.advanced-panel{grid-area:advanced;min-width:0;container:adv/inline-size}
+.preview-panels img,.preview-panels canvas{height:clamp(240px,calc(100vh - 380px),760px)}
+.empty-state{min-height:330px}
+/* compact goal cards */
+.goal-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.goal-option{min-height:0;padding:10px 11px;display:grid;grid-template-columns:auto 1fr;column-gap:8px;row-gap:2px;align-items:center}
+.goal-option .goal-icon{grid-row:1;font-size:18px}.goal-option strong{grid-row:1}.goal-option small{grid-column:1/-1}
+.goal-option.goal-custom{grid-column:auto;display:grid;flex-direction:initial}.goal-option.goal-custom small{margin-left:0;text-align:left}
+.style-list.compact{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.panel-subtitle{margin:16px 0 8px}
+/* advanced panel */
+.advanced-panel.open{background:#fdfcfb;border:1px solid #eee8e5;border-radius:16px;padding:16px}
+.advanced-panel.open .panel-title{margin-bottom:8px}
+details.advanced-panel{margin-top:0}
+details.advanced-panel summary{display:flex;align-items:center;gap:10px}
+.step-badge.small{width:28px;height:28px;border-radius:9px;font-size:11px}
+.advanced-body{display:grid;grid-template-columns:1fr;column-gap:20px}
+.warp-controls{display:grid;grid-template-columns:1fr;column-gap:20px}.warp-controls>small{grid-column:1/-1}
+@container adv (min-width:560px){.advanced-body{grid-template-columns:1fr 1fr}.advanced-body .span-2{grid-column:1/-1}.warp-controls{grid-template-columns:1fr 1fr}}
+.server-box{display:grid;grid-template-columns:1fr auto;column-gap:10px;align-items:end}.server-box .field{margin-bottom:2px}.server-box .button{width:auto;margin:0 0 3px}.server-box small{grid-column:1/-1;margin-top:6px}
+/* wide screens: three columns, everything visible without scrolling */
+@media(min-width:1500px){
+  .studio-grid{grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr) minmax(340px,1fr);grid-template-areas:"work controls advanced"}
+  .workspace{position:sticky;top:16px}
+}
+@media(max-width:999px){
+  .studio-grid{grid-template-columns:1fr;grid-template-areas:"work" "controls" "advanced"}
+  .preview-panels img,.preview-panels canvas{height:clamp(220px,45vh,520px)}
+}
+@media(max-width:560px){.hero-art{display:none}.server-box{grid-template-columns:1fr}.server-box .button{width:100%}}
+/* compact sliders: help text appears on hover / focus (tap on touch) as a popover, no layout shift */
+.detail-control{position:relative;margin:7px 2px}.detail-control input{margin:5px 0 2px}
+.detail-control span{align-items:center}
+.detail-control .info{display:inline-grid;place-items:center;width:14px;height:14px;margin-left:6px;margin-right:auto;border-radius:50%;background:#efe8f8;color:#9a79c8;font:700 9px/1 Georgia,serif;font-style:italic}
+.detail-control small.help{display:none;position:absolute;left:0;right:0;top:100%;z-index:5;margin:2px 0 0;padding:8px 10px;background:#fff;border:1px solid #e4dcdf;border-radius:10px;box-shadow:0 10px 25px #4e3a4320;color:#6d6175}
+.detail-control:hover small.help,.detail-control:focus-within small.help{display:block}
+.preview-panels img,.preview-panels canvas,.result-placeholder{height:auto;aspect-ratio:1/1;max-height:calc(100vh - 330px);min-height:200px}
+.result-placeholder{display:grid;place-items:center;width:100%}
+.reference-dropzone{min-height:0;padding:10px}
+.style-hint{margin-top:12px;padding:9px 11px}
+.generate-button{margin-top:12px}
+.warp-controls{padding:2px 10px 8px;margin:8px 0}
+@container adv (min-width:420px){.warp-controls{grid-template-columns:1fr 1fr}}
+@media(max-width:999px){.preview-panels img,.preview-panels canvas,.result-placeholder{max-height:52vh}}
+/* column layouts (v0.3.4): structure chosen in StylePanel.jsx by viewport width */
+.studio-grid.layout-wide,.studio-grid.layout-medium,.studio-grid.layout-narrow{display:grid;grid-template-areas:none;align-items:start;gap:clamp(16px,1.6vw,26px)}
+.studio-grid.layout-wide{grid-template-columns:minmax(0,1.5fr) minmax(330px,1fr) minmax(330px,1fr)}
+.studio-grid.layout-medium{grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr)}
+.studio-grid.layout-narrow{grid-template-columns:minmax(0,1fr)}
+.studio-grid .col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.studio-grid .span-all{grid-column:1/-1}
+.studio-grid .workspace,.studio-grid .advanced-panel{grid-area:auto;position:static}
+.reference-panel{border-top:1px solid #f0eae6;padding-top:2px}
+.reference-panel .panel-subtitle{margin:12px 0 8px}
+
+.action-panel .pipeline-summary{margin-top:0}
+.layout-medium .advanced-panel .advanced-body{column-gap:28px}
