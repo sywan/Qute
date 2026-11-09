@@ -144,10 +144,41 @@ test('fuller hair and cheeks: outline moves out, face interior fixed, mapping st
     minSlope = Math.min(minSlope, (a - b2) / 0.25);
   }
   assert.ok(minSlope > 0.43, 'max stretch ' + (1 / minSlope).toFixed(2) + 'x');
+  // hairline: never raised; moves slightly forward (down), more for a high (receding) hairline
+  const forwardPointHair = (pl, y) => { let o = y; for (let i = 0; i < 60; i++) o += y - mapPoint(pl, face.x, o)[1]; return o; };
+  for (const hy of [face.y - 0.45 * face.h, face.y - 0.7 * face.h]) {
+    const pl = planChibiWarp([{ ...face, hairlineY: hy }], { hair: 1 }, 300, 300);
+    const moved = forwardPointHair(pl, hy) - hy;
+    assert.ok(moved > 0.5, 'hairline moves down (forward), moved ' + moved.toFixed(2));
+    assert.ok(moved < 0.15 * face.h, 'but only a little');
+    if (hy < face.y - 0.6 * face.h) assert.ok(moved > forwardPointHair(planChibiWarp([{ ...face, hairlineY: face.y - 0.45 * face.h }], { hair: 1 }, 300, 300), face.y - 0.45 * face.h) - (face.y - 0.45 * face.h), 'receding hairline is brought further forward');
+    // hair well above the hairline still moves outward (fuller crown)
+    const [, src] = mapPoint(pl, face.x, face.y - 0.12 * face.h - 0.82 * face.h * 1.25);
+    assert.ok(src > face.y - 0.12 * face.h - 0.82 * face.h * 1.25 + 3, 'crown expands');
+  }
   // groups: a close neighbour reduces the reach and strength
   const near = planChibiWarp([face, { ...face, x: 210, landmarks: face.landmarks.map(([x, y]) => [x + 60, y]) }], { hair: 1 }, 400, 300).fields[0];
   assert.ok(near.outer * near.rx <= 30 + 1e-9 || near.outer === 1.3, 'stops halfway to the neighbour');
   assert.ok(near.amount < plan.fields[0].amount);
+});
+
+test('hairline estimate: forehead skin up to the hair, bald heads report a high hairline', async () => {
+  const { estimateHairline } = await import('../src/engines/imageOps.js');
+  const W = 200, H = 260, face = { x: 100, y: 150, w: 80, h: 100, landmarks: [[84, 135], [116, 135], [100, 152], [88, 172], [112, 172]] };
+  const paint = (hairY) => { const im = makeImage(W, H); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = y < hairY ? [60, 45, 35] : [225, 180, 150]; im.data.set([...c, 255], (y * W + x) * 4); } return im; };
+  const y1 = estimateHairline(paint(80), face);
+  assert.ok(Math.abs(y1 - 80) < 4, 'found hairline at ' + y1);
+  const bald = estimateHairline(paint(-1), face);
+  assert.ok(bald < 50, 'bald: high hairline ' + bald);
+  const { estimateHair } = await import('../src/engines/imageOps.js');
+  assert.ok(estimateHair(paint(80), face).thin < 0.2, 'dense dark hair is not thin');
+  // thin hair: scalp colour shows through above the hairline
+  const thinImg = paint(80); for (let y = 0; y < 80; y++) for (let x = 0; x < W; x++) if ((x + y) % 4 === 0) thinImg.data.set([90, 70, 55], (y * W + x) * 4); else thinImg.data.set([215, 172, 145], (y * W + x) * 4);
+  assert.ok(estimateHair(thinImg, face).thin > 0.6, 'thin hair detected');
+  // thin hair: much less crown expansion, hairline brought further forward
+  const f2 = { ...face, hairlineY: 100 };
+  const dense = planChibiWarp([{ ...f2, hairThin: 0 }], { hair: 1 }, W, H).fields[0], sparse = planChibiWarp([{ ...f2, hairThin: 1 }], { hair: 1 }, W, H).fields[0];
+  assert.ok(sparse.amount < dense.amount * 0.4 && sparse.drop > dense.drop * 2);
 });
 
 test('guided upsampling: keeps low-res colours, restores full-res edges', async () => {

@@ -78,14 +78,27 @@ export function planChibiWarp(faces, params, width, height) {
     // cheek line moves outward while the face's interior (eyes, nose, mouth) is left untouched.
     const reach = Number.isFinite(nearest) ? nearest : Infinity;
     if (hair > 0) {
-      const rx = f.w * 0.72, ry = f.h * 0.82;
+      const rx = f.w * 0.72, ry = f.h * 0.82, cy = f.y - f.h * 0.12;
       const eyeY = (re[1] + le[1]) / 2;
       // Outer falloff stops halfway to the nearest neighbour; amplitude shrinks if that is tight.
-      const outer = clamp((0.5 * reach) / rx, 1.3, 2.2);
+      const outer = clamp((0.5 * reach) / rx, 1.3, 2.4);
       const room = clamp((outer - 1.3) / (2.2 - 1.3), 0.35, 1);
+      // The hairline is anchored (never raised): it moves slightly forward (down), more so when it
+      // is high (receding or thinning hair), and only the hair above it expands outward.
+      const hairlineY = Number.isFinite(f.hairlineY) ? f.hairlineY : f.y - f.h * 0.5;
+      const hairline = clamp((cy - hairlineY) / ry, 0.25, 0.95);
+      const fore = Math.max(0.1, hairline - 0.35);
+      // Receding (high forehead for this face size) or thin hair: enlarging the crown would only
+      // show more scalp, so expand far less and bring the hairline further forward instead.
+      const receding = smoothstep(clamp(((eyeY - hairlineY) / eyeDist - 1.45) / 0.6, 0, 1));
+      const sparse = Math.max(receding, clamp(f.hairThin ?? 0, 0, 1));
+      const drop = hair * (0.035 + 0.075 * sparse);
+      const peak = Math.max(hairline + 0.3, Math.min(hairline + 0.75, outer - 0.35));
+      // Stretch limit (~2.2x): the steepest slope of the rise from -drop to +amount stays below 0.55.
+      const amount = Math.max(0, Math.min(0.24 * hair * room * (1 - 0.8 * sparse), (0.55 * (peak - hairline)) / 1.5 - drop));
       // Only above the eyebrows, so the sides of the face are never stretched.
-      fields.push({ type: 'hair', cx: f.x, cy: f.y - f.h * 0.12, rx, ry, inner: 0.5, peak: 1.15, outer,
-        amount: 0.24 * hair * room, fadeTop: eyeY - f.h * 0.3, fadeBottom: eyeY - f.h * 0.08 });
+      fields.push({ type: 'hair', cx: f.x, cy, rx, ry, fore, hairline, peak, outer: Math.max(outer, peak + 0.2), drop, amount,
+        fadeTop: eyeY - f.h * 0.3, fadeBottom: eyeY - f.h * 0.08 });
     }
     if (cheeks > 0) {
       const half = f.w * 0.5;
@@ -108,6 +121,60 @@ export function planChibiWarp(faces, params, width, height) {
     outHeight = Math.max(1, Math.round(squashFrom + (height - squashFrom) / k));
   } else squashFrom = null;
   return { width, height: outHeight, headBulges, featureBulges, fields, squashFrom, k };
+}
+
+// Estimate the hairline above the forehead centre: scan upward from the eyebrows while rows still
+// look like the forehead (skin-coloured, similar brightness); the first non-forehead rows are hair.
+// Returns a y coordinate (very high for bald heads, just above the brows when hair covers the forehead).
+export function estimateHairline(img, f) { return estimateHair(img, f).y; }
+
+// Also reports how thin the hair just above the hairline looks (0 = dense, 1 = scalp shows through).
+export function estimateHair(img, f) {
+  const { width: w, height: h, data } = img;
+  const [re, le] = f.landmarks;
+  const eyeY = (re[1] + le[1]) / 2, eyeDist = Math.hypot(le[0] - re[0], le[1] - re[1]) || f.w * 0.4;
+  const x0 = Math.max(0, Math.round(f.x - 0.45 * eyeDist)), x1 = Math.min(w - 1, Math.round(f.x + 0.45 * eyeDist));
+  const row = (y) => {
+    y = Math.round(y);
+    if (y < 0 || y >= h || x1 <= x0) return null;
+    let skin = 0, lum = 0, crS = 0, n = 0;
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * w + x) * 4, r = data[i], g = data[i + 1], b = data[i + 2];
+      const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b, cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+      skin += smooth01(128, 136, cr) * (1 - smooth01(175, 185, cr)) * smooth01(72, 80, cb) * (1 - smooth01(130, 138, cb));
+      lum += 0.299 * r + 0.587 * g + 0.114 * b; crS += cr; n++;
+    }
+    return { skin: skin / n, lum: lum / n, cr: crS / n };
+  };
+  const step = Math.max(1, eyeDist / 40);
+  // Reference forehead patch just above the eyebrows.
+  let ref = null, refN = 0;
+  for (let y = eyeY - 0.75 * eyeDist; y <= eyeY - 0.55 * eyeDist; y += step) {
+    const r = row(y); if (!r) continue;
+    ref = ref ? { skin: ref.skin + r.skin, lum: ref.lum + r.lum, cr: ref.cr + r.cr } : { ...r }; refN++;
+  }
+  if (!ref) return { y: eyeY - 1.2 * eyeDist, thin: 0 };
+  ref = { skin: ref.skin / refN, lum: ref.lum / refN, cr: ref.cr / refN };
+  if (ref.skin < 0.35) return { y: eyeY - 0.6 * eyeDist, thin: 0 }; // fringe/bangs cover the forehead
+  const limit = eyeY - 3.2 * eyeDist;
+  let misses = 0, hairY = limit;
+  for (let y = eyeY - 0.75 * eyeDist; y >= limit; y -= step) {
+    const r = row(y);
+    if (!r) { hairY = y + step; break; }
+    const forehead = r.skin > 0.45 * ref.skin && Math.abs(r.lum - ref.lum) < 0.22 * ref.lum + 8 && Math.abs(r.cr - ref.cr) < 9;
+    misses = forehead ? 0 : misses + 1;
+    if (misses * step >= 0.08 * eyeDist && misses >= 2) { hairY = y + (misses - 1) * step; break; }
+  }
+  // Thin hair: the band above the hairline is still fairly skin-like and close to skin brightness.
+  let thin = 0, n = 0;
+  for (let y = hairY - 0.1 * eyeDist; y >= hairY - 0.6 * eyeDist; y -= step) {
+    const r = row(y); if (!r) break;
+    const skinLike = clamp(r.skin / Math.max(0.05, ref.skin), 0, 1);
+    const close = 1 - clamp(Math.abs(r.lum - ref.lum) / (0.45 * ref.lum + 1), 0, 1);
+    thin += skinLike * close; n++;
+  }
+  thin = n ? smoothstep(clamp((thin / n - 0.15) / 0.35, 0, 1)) : 1; // nothing above: bald to the top of the frame
+  return { y: hairY, thin };
 }
 
 export function mapPoint(plan, x, y) {
@@ -135,9 +202,13 @@ export function fieldInverse(px, py, f) {
   if (f.type === 'hair') {
     const dx = (px - f.cx) / f.rx, dy = (py - f.cy) / f.ry;
     const rho = Math.hypot(dx, dy);
-    if (rho <= f.inner || rho >= f.outer || py >= f.fadeBottom) return [px, py];
+    if (rho <= f.fore || rho >= f.outer || py >= f.fadeBottom) return [px, py];
     const up = py <= f.fadeTop ? 1 : 1 - smoothstep((py - f.fadeTop) / (f.fadeBottom - f.fadeTop));
-    const s = (rho - f.amount * band(rho, f.inner, f.peak, f.outer) * up) / rho;
+    let D; // > 0: content moves outward; < 0: content moves inward (hairline forward)
+    if (rho <= f.hairline) D = -f.drop * smoothstep((rho - f.fore) / (f.hairline - f.fore));
+    else if (rho <= f.peak) D = -f.drop + (f.amount + f.drop) * smoothstep((rho - f.hairline) / (f.peak - f.hairline));
+    else D = f.amount * (1 - smoothstep((rho - f.peak) / (f.outer - f.peak)));
+    const s = (rho - D * up) / rho;
     return [f.cx + (px - f.cx) * s, f.cy + (py - f.cy) * s];
   }
   if (f.type === 'cheeks') {
@@ -476,7 +547,7 @@ export function applyBeautyROI(img, faces, params) {
 
 /** Scale face boxes and landmarks by s (to reuse detections at another resolution). */
 export function scaleFaces(faces, s) {
-  return faces.map((f) => ({ ...f, x: f.x * s, y: f.y * s, w: f.w * s, h: f.h * s, landmarks: f.landmarks.map(([x, y]) => [x * s, y * s]) }));
+  return faces.map((f) => ({ ...f, x: f.x * s, y: f.y * s, w: f.w * s, h: f.h * s, landmarks: f.landmarks.map(([x, y]) => [x * s, y * s]), ...(Number.isFinite(f.hairlineY) ? { hairlineY: f.hairlineY * s } : {}) }));
 }
 
 function luminance(img) {

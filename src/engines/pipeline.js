@@ -4,7 +4,7 @@
 //         -> (cute grade) -> (detail retention) -> PNG
 import { getStyleModel } from '../styleTransfer';
 import { canvasToBlob, imageDataToCanvas, loadImage, nextFrame, resizeImageData, toImageData } from './canvas';
-import { applyBeautyROI, applyWarp, blend, guidedUpsample, scaleFaces, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
+import { applyBeautyROI, applyWarp, estimateHair, blend, guidedUpsample, scaleFaces, cuteGrade, faceMask, mapFaces, paletteTransfer, planChibiWarp } from './imageOps';
 import { detectFaces, runCartoonModel } from './onnx';
 import { engineById } from './registry';
 import { serverStylize } from './server';
@@ -48,6 +48,8 @@ export async function runPipeline({ photoURL, referenceURL, settings, serverURL,
     onStep('detectingFaces');
     await nextFrame();
     try { faces = await detectFaces(photo); } catch (error) { console.warn('Face detection unavailable', error); }
+    // Fuller hair keeps each person's hairline in place (or slightly forward), so find it first.
+    if ((settings.warp?.hair || 0) > 0) faces = faces.map((f) => { const h = estimateHair(photo, f); return { ...f, hairlineY: h.y, hairThin: h.thin }; });
   }
 
   // 2. Geometric warp (big head, big eyes, rounder chin, shorter body).
